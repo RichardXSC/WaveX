@@ -2,6 +2,12 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -137,6 +143,145 @@ app.post('/api/charts/:id/rate', express.json(), (req, res) => {
   } catch (e) {
     console.error('Error rating chart:', e);
     res.status(500).json({ error: 'Failed to rate chart' });
+  }
+});
+
+// Admin authentication
+const ADMIN_PASSWORD_HASH = '$2b$10$YourHashedPasswordHere'; // We'll set this properly
+const adminSessions = new Map();
+
+// Hash the admin password from environment variable
+const hashAdminPassword = async () => {
+  const saltRounds = 12;
+  const adminPassword = process.env.ADMIN_PASSWORD || '19921124'; // Default for development only
+  const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Admin password hash generated for production');
+  } else {
+    console.log('Admin password hash generated (development mode)');
+  }
+  
+  return hashedPassword;
+};
+
+// Initialize admin password hash
+let ADMIN_PASSWORD_HASH_INITIALIZED = false;
+hashAdminPassword().then(hash => {
+  ADMIN_PASSWORD_HASH = hash;
+  ADMIN_PASSWORD_HASH_INITIALIZED = true;
+});
+
+// Admin login endpoint
+app.post('/api/admin/login', express.json(), async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    if (!ADMIN_PASSWORD_HASH_INITIALIZED) {
+      return res.status(503).json({ error: 'Admin system initializing' });
+    }
+    
+    const isValid = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+    
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+    
+    // Generate secure session token
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    const sessionData = {
+      authenticated: true,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    };
+    
+    adminSessions.set(sessionToken, sessionData);
+    
+    res.json({ 
+      success: true, 
+      sessionToken,
+      message: 'Admin access granted'
+    });
+    
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Admin session validation middleware
+const validateAdminSession = (req, res, next) => {
+  const sessionToken = req.headers['x-admin-session'];
+  
+  if (!sessionToken) {
+    return res.status(401).json({ error: 'No session token' });
+  }
+  
+  const session = adminSessions.get(sessionToken);
+  
+  if (!session || !session.authenticated) {
+    return res.status(401).json({ error: 'Invalid session' });
+  }
+  
+  if (Date.now() > session.expiresAt) {
+    adminSessions.delete(sessionToken);
+    return res.status(401).json({ error: 'Session expired' });
+  }
+  
+  next();
+};
+
+// Get all songs for admin panel
+app.get('/api/admin/songs', validateAdminSession, (req, res) => {
+  try {
+    const songsDir = path.join(PUBLIC_DIR, 'songs');
+    if (!fs.existsSync(songsDir)) {
+      return res.json([]);
+    }
+    
+    const files = fs.readdirSync(songsDir);
+    const songs = files
+      .filter(file => file.endsWith('.mp3') || file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.jpeg'))
+      .map(file => {
+        const stats = fs.statSync(path.join(songsDir, file));
+        return {
+          filename: file,
+          size: stats.size,
+          uploadDate: stats.mtime,
+          type: path.extname(file).substring(1)
+        };
+      })
+      .sort((a, b) => b.uploadDate - a.uploadDate);
+    
+    res.json(songs);
+  } catch (error) {
+    console.error('Error getting songs:', error);
+    res.status(500).json({ error: 'Failed to get songs' });
+  }
+});
+
+// Delete song file
+app.delete('/api/admin/songs/:filename', validateAdminSession, (req, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(PUBLIC_DIR, 'songs', filename);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    
+    // Security check: ensure filename doesn't contain path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+    
+    fs.unlinkSync(filePath);
+    console.log('Admin deleted file:', filename);
+    
+    res.json({ success: true, message: 'File deleted' });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
   }
 });
 
