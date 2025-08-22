@@ -246,6 +246,43 @@
 
     <audio id="mp3Audio" crossorigin="anonymous"></audio>
 
+    <!-- Admin Panel Modal -->
+    <div id="adminModal" class="modal hidden">
+        <div class="modal-content admin-modal">
+            <!-- Admin Login -->
+            <div id="adminLogin">
+                <div class="admin-header">
+                    <h2>🔐 Admin Panel</h2>
+                    <button class="close-btn" onclick="hideAdminPanel()">&times;</button>
+                </div>
+                <div class="admin-section">
+                    <h3>Enter Admin Password</h3>
+                    <input type="password" id="adminPassword" placeholder="Enter password" />
+                    <div id="adminError" class="error-message hidden"></div>
+                    <button class="btn primary" onclick="adminLogin()">Login</button>
+                </div>
+            </div>
+
+            <!-- Admin Dashboard -->
+            <div id="adminDashboard" class="hidden">
+                <div class="admin-header">
+                    <h2>⚙️ Admin Dashboard</h2>
+                    <button class="close-btn" onclick="hideAdminPanel()">&times;</button>
+                </div>
+                <div class="admin-section">
+                    <h3>Uploaded Songs</h3>
+                    <div class="admin-toolbar">
+                        <input type="text" id="adminSearch" placeholder="Search songs..." />
+                        <button class="btn" onclick="refreshAdminSongs()">Refresh</button>
+                    </div>
+                    <div id="adminSongsList" class="admin-songs-list">
+                        <div class="loading">Loading songs...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
