@@ -29,10 +29,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Use absolute paths that work on Render
-const PUBLIC_DIR = process.env.NODE_ENV === 'production' 
+let PUBLIC_DIR = process.env.NODE_ENV === 'production' 
   ? path.join(process.cwd(), 'public') 
   : path.resolve('.');
-const SONGS_DIR = path.join(PUBLIC_DIR, 'songs');
+let SONGS_DIR = path.join(PUBLIC_DIR, 'songs');
+
+// Create data directory for persistent storage
+const DATA_DIR = path.join(process.cwd(), 'data');
+
+// Chart storage endpoints - use a more reliable path
+const CHARTS_FILE = path.join(process.cwd(), 'charts.json');
 
 // Ensure directories exist with better error handling
 try {
@@ -44,19 +50,38 @@ try {
     fs.mkdirSync(SONGS_DIR, { recursive: true });
     console.log('Created songs directory:', SONGS_DIR);
   }
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    console.log('Created data directory:', DATA_DIR);
+  }
 } catch (error) {
   console.error('Failed to create directories:', error);
   // Fallback to current working directory
   const fallbackDir = process.cwd();
   console.log('Using fallback directory:', fallbackDir);
-  const PUBLIC_DIR = fallbackDir;
-  const SONGS_DIR = path.join(fallbackDir, 'songs');
+  PUBLIC_DIR = fallbackDir;
+  SONGS_DIR = path.join(fallbackDir, 'songs');
 }
 
-app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
+// Serve static files from the current directory (for the game files)
+app.use(express.static(process.cwd(), { extensions: ['html'] }));
 
 // Serve uploaded songs and artwork files
 app.use('/songs', express.static(SONGS_DIR));
+
+// Serve the main game files
+app.get('/', (req, res) => {
+  const indexPath = path.join(process.cwd(), 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.json({ 
+      message: 'WaveX API Server is running!', 
+      timestamp: new Date().toISOString(),
+      note: 'Game files not found. Make sure index.html is in the root directory.'
+    });
+  }
+});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, SONGS_DIR),
@@ -164,9 +189,6 @@ const slug = (str) => {
     .replace(/(^-|-$)/g, '');
 };
 
-// Chart storage endpoints - use a more reliable path
-const CHARTS_FILE = path.join(process.cwd(), 'charts.json');
-
 // Ensure charts file exists with better error handling
 try {
   if (!fs.existsSync(CHARTS_FILE)) {
@@ -178,14 +200,13 @@ try {
 } catch (error) {
   console.error('Failed to create charts file:', error);
   // Try alternative location
-  const altChartsFile = path.join(process.cwd(), 'data', 'charts.json');
+  const altChartsFile = path.join(DATA_DIR, 'charts.json');
   try {
     if (!fs.existsSync(path.dirname(altChartsFile))) {
       fs.mkdirSync(path.dirname(altChartsFile), { recursive: true });
     }
     fs.writeFileSync(altChartsFile, JSON.stringify([]));
     console.log('Created charts file in alternative location:', altChartsFile);
-    const CHARTS_FILE = altChartsFile;
   } catch (altError) {
     console.error('Failed to create alternative charts file:', altError);
   }
@@ -194,13 +215,6 @@ try {
 // Ensure songs directory exists
 if (!fs.existsSync(SONGS_DIR)) {
   fs.mkdirSync(SONGS_DIR, { recursive: true });
-}
-
-// Create data directory for persistent storage
-const DATA_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  console.log('Created data directory:', DATA_DIR);
 }
 
 // Get all charts
