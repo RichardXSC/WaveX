@@ -277,44 +277,63 @@
               } else {
                 throw new Error(`Failed to fetch remote MP3: ${response.status} ${response.statusText}`);
               }
-            } else {
-              // Local file path - try to load from local files
-              try {
-                const response = await fetch(chart.mp3);
-                if(response.ok) {
-                  const blob = await response.blob();
-                  const dataUrl = await fileToDataURL(blob);
-                  await Audio.useDataUrl(dataUrl);
-                  console.log('Loaded audio from local file path');
-                } else {
-                  throw new Error('Failed to load local MP3 file');
-                }
-              } catch(localError) {
-                console.warn('Failed to load local MP3:', localError);
-                throw localError;
-              }
-            }
+                         } else {
+               // Local file path - try to load from local files
+               try {
+                 console.log('Attempting to load local MP3 from:', chart.mp3);
+                 const response = await fetch(chart.mp3);
+                 if(response.ok) {
+                   const blob = await response.blob();
+                   const dataUrl = await fileToDataURL(blob);
+                   await Audio.useDataUrl(dataUrl);
+                   console.log('Loaded audio from local file path successfully');
+                 } else {
+                   console.warn('Failed to load local MP3 file:', response.status, response.statusText);
+                   // Try alternative path resolution
+                   const altPath = chart.mp3.startsWith('./') ? chart.mp3.substring(2) : chart.mp3;
+                   console.log('Trying alternative path:', altPath);
+                   const altResponse = await fetch(altPath);
+                   if(altResponse.ok) {
+                     const blob = await altResponse.blob();
+                     const dataUrl = await fileToDataURL(blob);
+                     await Audio.useDataUrl(dataUrl);
+                     console.log('Loaded audio from alternative path successfully');
+                   } else {
+                     throw new Error(`Failed to load local MP3 file: ${altResponse.status} ${altResponse.statusText}`);
+                   }
+                 }
+               } catch(localError) {
+                 console.warn('Failed to load local MP3:', localError);
+                 throw localError;
+               }
+             }
           } else { 
             console.log('No audio found in chart');
             Audio.mode='none'; 
           }
           
-          // Load chart data from JSON file if specified
-          if(chart.chartFile) {
-            try {
-              const chartResponse = await fetch(chart.chartFile);
-              if(chartResponse.ok) {
-                const chartData = await chartResponse.json();
-                this.chart.notes = chartData.notes || [];
-                this.notes = this.chart.notes.slice().sort((a,b)=>a.time-b.time);
-                console.log(`Loaded chart data from ${chart.chartFile}: ${this.notes.length} notes`);
-              } else {
-                console.warn(`Failed to load chart file: ${chartResponse.status}`);
-              }
-            } catch(chartError) {
-              console.warn('Failed to load chart data:', chartError);
-            }
-          }
+                     // Load chart data from JSON file if specified
+           if(chart.chartFile) {
+             try {
+               const chartResponse = await fetch(chart.chartFile);
+               if(chartResponse.ok) {
+                 const chartData = await chartResponse.json();
+                 this.chart.notes = chartData.notes || [];
+                 this.notes = this.chart.notes.slice().sort((a,b)=>a.time-b.time);
+                 console.log(`Loaded chart data from ${chart.chartFile}: ${this.notes.length} notes`);
+               } else {
+                 console.warn(`Failed to load chart file: ${chartResponse.status}`);
+               }
+             } catch(chartError) {
+               console.warn('Failed to load chart data:', chartError);
+             }
+           }
+           
+           // If we still don't have notes, use the built-in ones
+           if(this.notes.length === 0 && chart.notes && chart.notes.length > 0) {
+             this.notes = chart.notes.slice().sort((a,b)=>a.time-b.time);
+             console.log(`Using built-in notes: ${this.notes.length} notes`);
+           }
           
           // Load YouTube video if specified
           if(chart.youtube) {
