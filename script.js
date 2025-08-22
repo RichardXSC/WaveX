@@ -566,147 +566,147 @@
   // Wiring
   function wire(){ UI.top(); $('#songSearch').oninput=()=>UI.loadSongs(); $('#difficultyFilter').onchange=()=>UI.loadSongs(); $('#refreshCommunity').onclick=()=>UI.loadCommunity(); $('#profileName').onchange=(e)=>{ const p=Profile.get(); p.username=e.target.value; Profile.set(p); UI.top(); }; $('#profileAvatar').onchange=async(e)=>{ const f=e.target.files[0]; if(!f) return; const url=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); const p=Profile.get(); p.avatar=url; Profile.set(p); UI.top(); }; ['optVolume','optHitVolume','optSpeed','optMirror','optFadeIn','optHealth','optTheme'].forEach(id=>{ const el=$('#'+id); const save=()=>{ const o=Options.get(); o.volume=Number($('#optVolume').value); o.hitVolume=Number($('#optHitVolume').value); o.speed=Number($('#optSpeed').value); o.mirror=$('#optMirror').checked; o.fadeIn=$('#optFadeIn').checked; o.health=$('#optHealth').checked; o.theme=$('#optTheme').value; Options.set(o); }; el.addEventListener(el.type==='checkbox'?'change':'input',save); }); Editor.init(); }
 
-  // Admin Panel Functions
-function showAdminLogin() {
-  const modal = document.getElementById('adminModal');
-  const login = document.getElementById('adminLogin');
-  const dashboard = document.getElementById('adminDashboard');
-  
-  modal.classList.remove('hidden');
-  login.classList.remove('hidden');
-  dashboard.classList.add('hidden');
-}
-
-function hideAdminPanel() {
-  document.getElementById('adminModal').classList.add('hidden');
-}
-
-async function adminLogin() {
-  const password = document.getElementById('adminPassword').value;
-  const errorDiv = document.getElementById('adminError');
-  
-  try {
-    const response = await fetch('https://wavex-7f4p.onrender.com/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
-    });
+  // Admin Panel Functions - Made globally accessible
+  window.showAdminLogin = function() {
+    const modal = document.getElementById('adminModal');
+    const login = document.getElementById('adminLogin');
+    const dashboard = document.getElementById('adminDashboard');
     
-    const data = await response.json();
+    modal.classList.remove('hidden');
+    login.classList.remove('hidden');
+    dashboard.classList.add('hidden');
+  };
+
+  window.hideAdminPanel = function() {
+    document.getElementById('adminModal').classList.add('hidden');
+  };
+
+  window.adminLogin = async function() {
+    const password = document.getElementById('adminPassword').value;
+    const errorDiv = document.getElementById('adminError');
     
-    if (data.success) {
-      // Store session token
-      localStorage.setItem('adminSessionToken', data.sessionToken);
+    try {
+      const response = await fetch('https://wavex-7f4p.onrender.com/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
       
-      // Show dashboard
-      document.getElementById('adminLogin').classList.add('hidden');
-      document.getElementById('adminDashboard').classList.remove('hidden');
+      const data = await response.json();
       
-      // Load songs
-      loadAdminSongs();
-    } else {
-      errorDiv.textContent = data.error || 'Login failed';
+      if (data.success) {
+        // Store session token
+        localStorage.setItem('adminSessionToken', data.sessionToken);
+        
+        // Show dashboard
+        document.getElementById('adminLogin').classList.add('hidden');
+        document.getElementById('adminDashboard').classList.remove('hidden');
+        
+        // Load songs
+        loadAdminSongs();
+      } else {
+        errorDiv.textContent = data.error || 'Login failed';
+        errorDiv.classList.remove('hidden');
+      }
+    } catch (error) {
+      errorDiv.textContent = 'Connection failed: ' + error.message;
       errorDiv.classList.remove('hidden');
     }
-  } catch (error) {
-    errorDiv.textContent = 'Connection failed: ' + error.message;
-    errorDiv.classList.remove('hidden');
-  }
-}
+  };
 
-async function loadAdminSongs() {
-  const sessionToken = localStorage.getItem('adminSessionToken');
-  if (!sessionToken) return;
-  
-  try {
-    const response = await fetch('https://wavex-7f4p.onrender.com/api/admin/songs', {
-      headers: { 'x-admin-session': sessionToken }
-    });
+  async function loadAdminSongs() {
+    const sessionToken = localStorage.getItem('adminSessionToken');
+    if (!sessionToken) return;
     
-    if (response.ok) {
-      const songs = await response.json();
-      displayAdminSongs(songs);
-    } else {
-      console.error('Failed to load admin songs');
-    }
-  } catch (error) {
-    console.error('Admin songs error:', error);
-  }
-}
-
-function displayAdminSongs(songs) {
-  const list = document.getElementById('adminSongsList');
-  
-  if (songs.length === 0) {
-    list.innerHTML = '<div class="no-songs">No songs uploaded yet</div>';
-    return;
-  }
-  
-  list.innerHTML = songs.map(song => `
-    <div class="admin-song-item">
-      <div class="song-info">
-        <div class="filename">${song.filename}</div>
-        <div class="meta">${song.type.toUpperCase()} • ${formatFileSize(song.size)} • ${new Date(song.uploadDate).toLocaleDateString()}</div>
-      </div>
-      <button class="btn danger" onclick="deleteSong('${song.filename}')">Delete</button>
-    </div>
-  `).join('');
-}
-
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-async function deleteSong(filename) {
-  if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
-  
-  const sessionToken = localStorage.getItem('adminSessionToken');
-  if (!sessionToken) return;
-  
-  try {
-    const response = await fetch(`https://wavex-7f4p.onrender.com/api/admin/songs/${encodeURIComponent(filename)}`, {
-      method: 'DELETE',
-      headers: { 'x-admin-session': sessionToken }
-    });
-    
-    if (response.ok) {
-      alert('Song deleted successfully!');
-      loadAdminSongs(); // Refresh the list
-    } else {
-      alert('Failed to delete song');
-    }
-  } catch (error) {
-    alert('Error deleting song: ' + error.message);
-  }
-}
-
-function refreshAdminSongs() {
-  loadAdminSongs();
-}
-
-// Search functionality for admin panel
-document.addEventListener('DOMContentLoaded', function() {
-  const searchInput = document.getElementById('adminSearch');
-  if (searchInput) {
-    searchInput.addEventListener('input', function() {
-      const query = this.value.toLowerCase();
-      const songItems = document.querySelectorAll('.admin-song-item');
-      
-      songItems.forEach(item => {
-        const filename = item.querySelector('.filename').textContent.toLowerCase();
-        if (filename.includes(query)) {
-          item.style.display = 'block';
-        } else {
-          item.style.display = 'none';
-        }
+    try {
+      const response = await fetch('https://wavex-7f4p.onrender.com/api/admin/songs', {
+        headers: { 'x-admin-session': sessionToken }
       });
-    });
+      
+      if (response.ok) {
+        const songs = await response.json();
+        displayAdminSongs(songs);
+      } else {
+        console.error('Failed to load admin songs');
+      }
+    } catch (error) {
+      console.error('Admin songs error:', error);
+    }
   }
-});
+
+  function displayAdminSongs(songs) {
+    const list = document.getElementById('adminSongsList');
+    
+    if (songs.length === 0) {
+      list.innerHTML = '<div class="no-songs">No songs uploaded yet</div>';
+      return;
+    }
+    
+    list.innerHTML = songs.map(song => `
+      <div class="admin-song-item">
+        <div class="song-info">
+          <div class="filename">${song.filename}</div>
+          <div class="meta">${song.type.toUpperCase()} • ${formatFileSize(song.size)} • ${new Date(song.uploadDate).toLocaleDateString()}</div>
+        </div>
+        <button class="btn danger" onclick="deleteSong('${song.filename}')">Delete</button>
+      </div>
+    `).join('');
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  window.deleteSong = async function(filename) {
+    if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+    
+    const sessionToken = localStorage.getItem('adminSessionToken');
+    if (!sessionToken) return;
+    
+    try {
+      const response = await fetch(`https://wavex-7f4p.onrender.com/api/admin/songs/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-session': sessionToken }
+      });
+      
+      if (response.ok) {
+        alert('Song deleted successfully!');
+        loadAdminSongs(); // Refresh the list
+      } else {
+        alert('Failed to delete song');
+      }
+    } catch (error) {
+      alert('Error deleting song: ' + error.message);
+    }
+  };
+
+  window.refreshAdminSongs = function() {
+    loadAdminSongs();
+  };
+
+  // Search functionality for admin panel
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('adminSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        const songItems = document.querySelectorAll('.admin-song-item');
+        
+        songItems.forEach(item => {
+          const filename = item.querySelector('.filename').textContent.toLowerCase();
+          if (filename.includes(query)) {
+            item.style.display = 'block';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      });
+    }
+  });
 
 function init(){ Options.set(Options.get()); wire(); }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
