@@ -1,5 +1,6 @@
 /* WaveX — Reliable MVP: 4K play, editor, community, profile, options (non-module script) */
 (function(){
+  const SERVER_URL = 'https://wavex-7f4p.onrender.com';
   const KEY_TO_LANE={d:1,f:2,j:3,k:4}; const LANE_TO_KEY={1:'D',2:'F',3:'J',4:'K'};
   const JUDGE_MS={perfect:30,great:60,good:100,miss:150}; const SCORE={perfect:1000,great:600,good:200,miss:0}; const ACC={perfect:1, great:0.7, good:0.4, miss:0};
   const SKEY={profile:'wavex_profile_v1', charts:'wavex_charts_v1', community:'wavex_community_v1', options:'wavex_options_v1', leader:'wavex_leaderboards_v1'};
@@ -468,7 +469,7 @@
       requestAnimationFrame(()=>this.loop());
     },
     save(){ if(!this.chart.title||!this.chart.artist) return alert('Title/Artist required'); this.chart.id=this.chart.id||`${slug(this.chart.title)}-${slug(this.chart.artist)}-${slug(this.chart.difficulty||'normal')}`; Charts.save(this.chart); alert('Draft saved'); },
-    async publish(){
+        async publish(){
       const p=Profile.get(); if(!p.username||p.username==='Guest') return alert('Set username in Profile'); if(!this.chart.notes.length) return alert('Add notes first');
       this.chart.id=this.chart.id||`${slug(this.chart.title)}-${slug(this.chart.artist)}-${slug(this.chart.difficulty||'normal')}`;
       
@@ -482,8 +483,6 @@
           const formData = new FormData();
           formData.append('mp3', blob, fileName);
           
-          // Use your Render server URL here
-          const SERVER_URL = 'https://wavex-7f4p.onrender.com'; // Replace with your actual Render URL
           const response = await fetch(`${SERVER_URL}/api/upload`, {
             method: 'POST',
             body: formData
