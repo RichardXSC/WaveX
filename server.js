@@ -508,8 +508,6 @@ app.delete('/api/admin/songs/:filename', validateAdminSession, (req, res) => {
   }
 });
 
-
-
 app.listen(PORT, () => {
   console.log(`🎵 WaveX server running on port ${PORT}`);
   console.log(`📁 Public directory: ${PUBLIC_DIR}`);
