@@ -164,7 +164,59 @@
   const gC=$('#gameCanvas'), g= gC.getContext('2d');
   const Game={running:false, paused:false, notes:[], hitIdx:0, score:0, combo:0, maxCombo:0, judge:{perfect:0,great:0,good:0,miss:0}, offset:0, speed:600, startMs:0, lastMs:0, mods:{speed:1,mirror:false,fadeIn:false}, pressed:{1:false,2:false,3:false,4:false}, health:1,
     resize(){ const area=$('#gameArea'); if(!area) return; const r=area.getBoundingClientRect(); gC.width=r.width; gC.height=r.height; this.judgeY=gC.height-80; this.lanes=[0,1,2,3].map(i=>({x:i*(r.width/4),w:(r.width/4)})); },
-         async start(chart,mods){ this.chart=JSON.parse(JSON.stringify(chart)); this.notes=this.chart.notes.slice().sort((a,b)=>a.time-b.time); this.hitIdx=0; this.score=0; this.combo=0; this.maxCombo=0; this.judge={perfect:0,great:0,good:0,miss:0}; this.health=1; this.offset=chart.offset||0; const o=Options.get(); this.mods={speed:1,mirror:o.mirror,fadeIn:o.fadeIn,...(mods||{})}; this.speed=80*(o.speed||6)*(this.mods.speed||1); Screens.go('screen-game'); this.resize(); addEventListener('resize', this._rs=()=>this.resize()); this.bind(); if(chart.dataUrl){ await Audio.useDataUrl(chart.dataUrl); } else if(chart.mp3){ await Audio.useDataUrl(chart.mp3); } else { Audio.mode='none'; } await this.primePlayback(); await this.countdown(); this.startMs=performance.now(); this.lastMs=this.startMs; this.audioStartTime=Audio.time(); await Audio.play(); this.running=true; requestAnimationFrame(t=>this.frame(t)); },
+         async start(chart,mods){ 
+       this.chart=JSON.parse(JSON.stringify(chart)); 
+       this.notes=this.chart.notes.slice().sort((a,b)=>a.time-b.time); 
+       this.hitIdx=0; this.score=0; this.combo=0; this.maxCombo=0; 
+       this.judge={perfect:0,great:0,good:0,miss:0}; this.health=1; 
+       this.offset=chart.offset||0; 
+       const o=Options.get(); 
+       this.mods={speed:1,mirror:o.mirror,fadeIn:o.fadeIn,...(mods||{})}; 
+       this.speed=80*(o.speed||6)*(this.mods.speed||1); 
+       
+       Screens.go('screen-game'); 
+       this.resize(); 
+       addEventListener('resize', this._rs=()=>this.resize()); 
+       this.bind(); 
+       
+       // Load audio with better error handling
+       try {
+         if(chart.dataUrl){ 
+           await Audio.useDataUrl(chart.dataUrl); 
+         } else if(chart.mp3){ 
+           if(chart.mp3.startsWith('data:')) {
+             await Audio.useDataUrl(chart.mp3);
+           } else if(chart.mp3.startsWith('http')) {
+             // Try to fetch remote MP3 and convert to data URL
+             const response = await fetch(chart.mp3);
+             if(response.ok) {
+               const blob = await response.blob();
+               const dataUrl = await fileToDataURL(blob);
+               await Audio.useDataUrl(dataUrl);
+             } else {
+               throw new Error('Failed to fetch remote MP3');
+             }
+           } else {
+             // Local file path
+             await Audio.useDataUrl(chart.mp3);
+           }
+         } else { 
+           Audio.mode='none'; 
+         }
+       } catch(audioError) {
+         console.warn('Audio loading failed:', audioError);
+         Audio.mode='none';
+       }
+       
+       await this.primePlayback(); 
+       await this.countdown(); 
+       this.startMs=performance.now(); 
+       this.lastMs=this.startMs; 
+       this.audioStartTime=Audio.time(); 
+       await Audio.play(); 
+       this.running=true; 
+       requestAnimationFrame(t=>this.frame(t)); 
+     },
 
     async primePlayback(){
       try{
@@ -407,7 +459,20 @@
        $('#editorLoad').onclick=()=>this.load(); $('#editorPlay').onclick=()=>this.play(); $('#editorPause').onclick=()=>this.pause();
        $('#editorSave').onclick=()=>this.save(); $('#editorPublish').onclick=()=>this.publish();
        const saveMp3Btn=document.getElementById('editorSaveMp3'); if(saveMp3Btn) saveMp3Btn.onclick=()=>this.saveMp3Locally();
-       $('#editorExport').onclick=()=>this.exportJSON(); $('#editorClear').onclick=()=>this.clearNotes(); $('#editorUndo').onclick=()=>this.undo();
+               $('#editorExport').onclick=()=>this.exportJSON(); $('#editorClear').onclick=()=>this.clearNotes(); $('#editorUndo').onclick=()=>this.undo();
+        
+        // Add debug button
+        const debugBtn = document.createElement('button');
+        debugBtn.id = 'editorDebug';
+        debugBtn.className = 'btn';
+        debugBtn.textContent = 'Debug Audio';
+        debugBtn.onclick = () => this.debugAudio();
+        
+        // Insert after the Undo button
+        const undoBtn = document.getElementById('editorUndo');
+        if (undoBtn && undoBtn.parentNode) {
+          undoBtn.parentNode.insertBefore(debugBtn, undoBtn.nextSibling);
+        }
        $('#timelineZoom').oninput=(e)=>this.zoom=Number(e.target.value); $('#editorOffset').oninput=(e)=>this.chart.offset=Number(e.target.value);
        $('#mp3File').onchange=async(e)=>{ this.mp3=e.target.files[0]; if(this.mp3){ const dataUrl=await fileToDataURL(this.mp3); this.chart.mp3=dataUrl; } };
        $('#artworkFile').onchange=async(e)=>{ this.artwork=e.target.files[0]; if(this.artwork){ const dataUrl=await fileToDataURL(this.artwork); this.chart.artwork=dataUrl; } };
@@ -559,7 +624,31 @@
         this.setStatus('MP3 saved locally.');
       }catch(e){ console.warn('Failed to save MP3:', e); alert('Failed to save MP3: ' + e.message); }
     },
-    exportJSON(){ const blob=new Blob([JSON.stringify(this.chart,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(this.chart.title||'chart')}.json`; a.click(); URL.revokeObjectURL(url); },
+         exportJSON(){ const blob=new Blob([JSON.stringify(this.chart,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(this.chart.title||'chart')}.json`; a.click(); URL.revokeObjectURL(url); },
+     
+     // Debug function to check chart audio status
+     debugAudio() {
+       const status = [];
+       status.push(`Chart: ${this.chart.title || 'Untitled'}`);
+       status.push(`MP3: ${this.chart.mp3 ? 'Yes' : 'No'}`);
+       if(this.chart.mp3) {
+         if(this.chart.mp3.startsWith('data:')) {
+           status.push('MP3 Type: Data URL');
+           status.push(`MP3 Size: ~${Math.round(this.chart.mp3.length * 0.75 / 1024)}KB`);
+         } else if(this.chart.mp3.startsWith('http')) {
+           status.push('MP3 Type: HTTP URL');
+           status.push(`MP3 URL: ${this.chart.mp3}`);
+         } else {
+           status.push('MP3 Type: Local Path');
+           status.push(`MP3 Path: ${this.chart.mp3}`);
+         }
+       }
+       status.push(`Notes: ${this.chart.notes.length}`);
+       status.push(`Audio Mode: ${Audio.mode}`);
+       status.push(`Audio Ready: ${Audio.el && Audio.el.readyState >= 1 ? 'Yes' : 'No'}`);
+       
+       alert('Audio Debug Info:\n' + status.join('\n'));
+     },
     clearNotes(){ if(confirm('Clear all notes?')){ this.chart.notes=[]; this.setStatus('Cleared notes'); } },
     undo(){ const last=this.lastActionStack.pop(); if(!last) return; if(last.type==='add'){ const idx=this.chart.notes.lastIndexOf(last.note); if(idx>=0) this.chart.notes.splice(idx,1); } if(last.type==='del'){ this.chart.notes.push(last.note); this.chart.notes.sort((a,b)=>a.time-b.time); } this.setStatus('Undid last action'); },
     setStatus(t){ const el=document.getElementById('editorStatus'); if(el) el.textContent=t; },
@@ -639,49 +728,73 @@
       input.click();
     },
     
-    async importJSONFile(file) {
-      try {
-        const text = await file.text();
-        const chartData = JSON.parse(text);
-        
-        // Validate chart data
-        if (!chartData.title || !chartData.artist || !Array.isArray(chartData.notes)) {
-          throw new Error('Invalid chart format. Must have title, artist, and notes array.');
-        }
-        
-        // Load the chart data
-        this.chart = {
-          id: chartData.id || '',
-          title: chartData.title,
-          artist: chartData.artist,
-          difficulty: chartData.difficulty || 'Normal',
-          mp3: chartData.mp3 || '',
-          artwork: chartData.artwork || '',
-          offset: chartData.offset || 0,
-          notes: chartData.notes || []
-        };
-        
-        // Update form fields
-        $('#editorTitle').value = this.chart.title;
-        $('#editorArtist').value = this.chart.artist;
-        $('#editorDiff').value = this.chart.difficulty;
-        $('#editorOffset').value = this.chart.offset;
-        
-        // Clear current MP3 and artwork
-        this.mp3 = null;
-        this.artwork = null;
-        
-        // Update status
-        this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes)`);
-        
-        // Clear action stack since this is a new chart
-        this.lastActionStack = [];
-        
-      } catch (error) {
-        console.error('Import failed:', error);
-        alert(`Failed to import chart: ${error.message}`);
-      }
-    }
+         async importJSONFile(file) {
+       try {
+         const text = await file.text();
+         const chartData = JSON.parse(text);
+         
+         // Validate chart data
+         if (!chartData.title || !chartData.artist || !Array.isArray(chartData.notes)) {
+           throw new Error('Invalid chart format. Must have title, artist, and notes array.');
+         }
+         
+         // Load the chart data
+         this.chart = {
+           id: chartData.id || '',
+           title: chartData.title,
+           artist: chartData.artist,
+           difficulty: chartData.difficulty || 'Normal',
+           mp3: chartData.mp3 || '',
+           artwork: chartData.artwork || '',
+           offset: chartData.offset || 0,
+           notes: chartData.notes || []
+         };
+         
+         // Update form fields
+         $('#editorTitle').value = this.chart.title;
+         $('#editorArtist').value = this.chart.artist;
+         $('#editorDiff').value = this.chart.difficulty;
+         $('#editorOffset').value = this.chart.offset;
+         
+         // Try to load MP3 if it exists
+         if (this.chart.mp3) {
+           try {
+             if (this.chart.mp3.startsWith('data:')) {
+               // Data URL - load directly
+               await Audio.useDataUrl(this.chart.mp3);
+               this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes) • MP3 loaded`);
+             } else if (this.chart.mp3.startsWith('http')) {
+               // HTTP URL - try to fetch and convert to data URL
+               const response = await fetch(this.chart.mp3);
+               if (response.ok) {
+                 const blob = await response.blob();
+                 const dataUrl = await fileToDataURL(blob);
+                 this.chart.mp3 = dataUrl;
+                 await Audio.useDataUrl(dataUrl);
+                 this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes) • MP3 loaded from URL`);
+               } else {
+                 this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes) • MP3 URL failed to load`);
+               }
+             } else {
+               // Local file path - try to load
+               this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes) • MP3 path: ${this.chart.mp3}`);
+             }
+           } catch (mp3Error) {
+             console.warn('Failed to load MP3 during import:', mp3Error);
+             this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes) • MP3 load failed`);
+           }
+         } else {
+           this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes) • No MP3`);
+         }
+         
+         // Clear action stack since this is a new chart
+         this.lastActionStack = [];
+         
+       } catch (error) {
+         console.error('Import failed:', error);
+         alert(`Failed to import chart: ${error.message}`);
+       }
+     }
   };
 
      // Wiring
