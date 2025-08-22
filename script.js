@@ -11,7 +11,7 @@
       notes:Array.from({length:64},(_,i)=>({time:0.6+i*0.5,lane:(i%4)+1})) },
     { id:'random-blitz', title:'Random Blitz', artist:'WaveX', difficulty:'Normal', mp3:'', offset:0,
       notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() },
-    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[
+    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'./Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'./Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[
       {time:1.0,lane:1},{time:1.5,lane:2},{time:2.0,lane:3},{time:2.5,lane:4},
       {time:3.0,lane:1},{time:3.5,lane:2},{time:4.0,lane:3},{time:4.5,lane:4},
       {time:5.0,lane:1},{time:5.5,lane:2},{time:6.0,lane:3},{time:6.5,lane:4},
@@ -281,26 +281,38 @@
                // Local file path - try to load from local files
                try {
                  console.log('Attempting to load local MP3 from:', chart.mp3);
-                 const response = await fetch(chart.mp3);
-                 if(response.ok) {
-                   const blob = await response.blob();
-                   const dataUrl = await fileToDataURL(blob);
-                   await Audio.useDataUrl(dataUrl);
-                   console.log('Loaded audio from local file path successfully');
-                 } else {
-                   console.warn('Failed to load local MP3 file:', response.status, response.statusText);
-                   // Try alternative path resolution
-                   const altPath = chart.mp3.startsWith('./') ? chart.mp3.substring(2) : chart.mp3;
-                   console.log('Trying alternative path:', altPath);
-                   const altResponse = await fetch(altPath);
-                   if(altResponse.ok) {
-                     const blob = await altResponse.blob();
-                     const dataUrl = await fileToDataURL(blob);
-                     await Audio.useDataUrl(dataUrl);
-                     console.log('Loaded audio from alternative path successfully');
-                   } else {
-                     throw new Error(`Failed to load local MP3 file: ${altResponse.status} ${altResponse.statusText}`);
+                 
+                 // Try multiple path variations
+                 const paths = [
+                   chart.mp3,
+                   chart.mp3.startsWith('./') ? chart.mp3.substring(2) : chart.mp3,
+                   chart.mp3.startsWith('./') ? chart.mp3 : './' + chart.mp3,
+                   chart.mp3.replace(/^\.\//, ''),
+                   chart.mp3.replace(/^\.\//, '') + '.mp3'
+                 ];
+                 
+                 let loaded = false;
+                 for (const path of paths) {
+                   try {
+                     console.log('Trying path:', path);
+                     const response = await fetch(path);
+                     if(response.ok) {
+                       const blob = await response.blob();
+                       const dataUrl = await fileToDataURL(blob);
+                       await Audio.useDataUrl(dataUrl);
+                       console.log('Loaded audio from path successfully:', path);
+                       loaded = true;
+                       break;
+                     } else {
+                       console.warn(`Path ${path} failed:`, response.status, response.statusText);
+                     }
+                   } catch(pathError) {
+                     console.warn(`Path ${path} error:`, pathError);
                    }
+                 }
+                 
+                 if (!loaded) {
+                   throw new Error('All path variations failed to load MP3');
                  }
                } catch(localError) {
                  console.warn('Failed to load local MP3:', localError);
@@ -335,11 +347,15 @@
              console.log(`Using built-in notes: ${this.notes.length} notes`);
            }
           
-          // Load YouTube video if specified
-          if(chart.youtube) {
-            await Audio.useYouTube(chart.youtube);
-            console.log('Loaded YouTube video background');
-          }
+                     // Load YouTube video if specified
+           if(chart.youtube) {
+             try {
+               await Audio.useYouTube(chart.youtube);
+               console.log('Loaded YouTube video background');
+             } catch(ytError) {
+               console.warn('Failed to load YouTube video:', ytError);
+             }
+           }
         } catch(audioError) {
           console.warn('Audio loading failed:', audioError);
           Audio.mode='none';
