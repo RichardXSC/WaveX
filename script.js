@@ -10,7 +10,8 @@
     { id:'tutorial', title:'Tutorial Beat', artist:'WaveX', difficulty:'Easy', mp3:'', offset:0,
       notes:Array.from({length:64},(_,i)=>({time:0.6+i*0.5,lane:(i%4)+1})) },
     { id:'random-blitz', title:'Random Blitz', artist:'WaveX', difficulty:'Normal', mp3:'', offset:0,
-      notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() }
+      notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() },
+    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[] }
   ];
   const $=(q)=>document.querySelector(q); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const fmtScore=(n)=>(n|0).toString().padStart(7,'0'); const fmtPct=(p)=>(p*100).toFixed(2)+'%'; const slug=(s)=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   const Store={get:(k,f)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):f;}catch(e){return f;}}, set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
@@ -23,6 +24,21 @@
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  }
+  
+  // Helper function to load chart data from JSON file
+  async function loadChartData(chartPath) {
+    try {
+      const response = await fetch(chartPath);
+      if(response.ok) {
+        const chartData = await response.json();
+        return chartData.notes || [];
+      }
+      return [];
+    } catch(e) {
+      console.warn('Failed to load chart data:', e);
+      return [];
+    }
   }
   const Options={get(){return Store.get(SKEY.options,DefaultOptions)}, set(v){Store.set(SKEY.options,v); document.body.setAttribute('data-theme', v.theme==='neon'?'':v.theme); Audio.setVolume(v.volume);}};
   const Profile={get(){return Store.get(SKEY.profile,DefaultProfile)}, set(v){Store.set(SKEY.profile,v)}};
@@ -104,16 +120,45 @@
 
   // Audio
   const Audio={
-    ctx:null,gain:null,mode:'none',el:$('#mp3Audio'),mediaSource:null,
+    ctx:null,gain:null,mode:'none',el:$('#mp3Audio'),mediaSource:null,yt:null,
     async ensure(){ if(!this.ctx){ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); this.gain=this.ctx.createGain(); this.gain.connect(this.ctx.destination);} },
     setVolume(v){ if(this.gain) this.gain.gain.value=clamp(v,0,1); this.el.volume=clamp(v,0,1); },
     async useMp3(file){ await this.ensure(); this.mode='mp3'; this.el.src=URL.createObjectURL(file); if(!this.mediaSource){ this.mediaSource=this.ctx.createMediaElementSource(this.el); this.mediaSource.connect(this.gain);} },
     async useDataUrl(dataUrl){ await this.ensure(); this.mode='mp3'; this.el.src=dataUrl; if(!this.mediaSource){ this.mediaSource=this.ctx.createMediaElementSource(this.el); this.mediaSource.connect(this.gain);} },
+    async useYouTube(url){ 
+      await this.ensure(); 
+      this.mode='youtube'; 
+      // Create YouTube iframe if it doesn't exist
+      if(!this.yt) {
+        const iframe = document.createElement('iframe');
+        iframe.src = url + '?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0';
+        iframe.style.position = 'fixed';
+        iframe.style.top = '0';
+        iframe.style.left = '0';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.zIndex = '-1';
+        iframe.style.pointerEvents = 'none';
+        iframe.style.opacity = '0.3';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.title = 'Background Video';
+        document.body.appendChild(iframe);
+        this.yt = iframe;
+      }
+    },
     async play() {
         await this.ensure();
         if (this.ctx.state === 'suspended') await this.ctx.resume();
-        if (this.mode === 'youtube') this.yt && this.yt.playVideo();
-        else if (this.mode === 'mp3') {
+        if (this.mode === 'youtube') {
+          // For YouTube, we'll use the MP3 audio but show the video
+          if(this.yt) {
+            // Extract video ID and create autoplay URL
+            const videoId = this.yt.src.match(/embed\/([^?]+)/)?.[1];
+            if(videoId) {
+              this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&start=0`;
+            }
+          }
+        } else if (this.mode === 'mp3') {
             try {
                 // Ensure the audio context is running before playing
                 if (this.ctx.state === 'suspended') {
@@ -127,7 +172,16 @@
             }
         }
     },
-    pause(){ if(this.mode==='mp3') this.el.pause(); },
+    pause(){ 
+      if(this.mode==='mp3') this.el.pause(); 
+      if(this.mode==='youtube' && this.yt) {
+        // Pause YouTube video by reloading without autoplay
+        const videoId = this.yt.src.match(/embed\/([^?]+)/)?.[1];
+        if(videoId) {
+          this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0`;
+        }
+      }
+    },
     seek(t){ if(this.mode==='mp3') this.el.currentTime=t; },
     time(){ if(this.mode==='mp3') return this.el.currentTime||0; return 0; }
   };
@@ -204,13 +258,46 @@
                 throw new Error(`Failed to fetch remote MP3: ${response.status} ${response.statusText}`);
               }
             } else {
-              // Local file path
-              await Audio.useDataUrl(chart.mp3);
-              console.log('Loaded audio from local path');
+              // Local file path - try to load from local files
+              try {
+                const response = await fetch(chart.mp3);
+                if(response.ok) {
+                  const blob = await response.blob();
+                  const dataUrl = await fileToDataURL(blob);
+                  await Audio.useDataUrl(dataUrl);
+                  console.log('Loaded audio from local file path');
+                } else {
+                  throw new Error('Failed to load local MP3 file');
+                }
+              } catch(localError) {
+                console.warn('Failed to load local MP3:', localError);
+                // Try to load chart data from JSON file
+                if(chart.mp3.includes('.mp3')) {
+                  const chartPath = chart.mp3.replace('.mp3', '.json');
+                  try {
+                    const chartResponse = await fetch(chartPath);
+                    if(chartResponse.ok) {
+                      const chartData = await chartResponse.json();
+                      this.chart.notes = chartData.notes || [];
+                      this.notes = this.chart.notes.slice().sort((a,b)=>a.time-b.time);
+                      console.log('Loaded chart data from JSON file');
+                    }
+                  } catch(chartError) {
+                    console.warn('Failed to load chart data:', chartError);
+                  }
+                }
+                throw localError;
+              }
             }
           } else { 
             console.log('No audio found in chart');
             Audio.mode='none'; 
+          }
+          
+          // Load YouTube video if specified
+          if(chart.youtube) {
+            await Audio.useYouTube(chart.youtube);
+            console.log('Loaded YouTube video background');
           }
         } catch(audioError) {
           console.warn('Audio loading failed:', audioError);
@@ -286,6 +373,13 @@
     const debugBtn = document.getElementById('gameDebug');
     if(debugBtn) {
       document.body.removeChild(debugBtn);
+    }
+    
+    // Clean up YouTube video if present
+    if(Audio.yt) {
+      document.body.removeChild(Audio.yt);
+      Audio.yt = null;
+      console.log('YouTube video cleaned up');
     }
   },
     frame(ts){
