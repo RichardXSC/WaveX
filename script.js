@@ -11,7 +11,18 @@
       notes:Array.from({length:64},(_,i)=>({time:0.6+i*0.5,lane:(i%4)+1})) },
     { id:'random-blitz', title:'Random Blitz', artist:'WaveX', difficulty:'Normal', mp3:'', offset:0,
       notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() },
-    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[], chartFile:'Main_Levels/Teto Medicine/teto-medicine1.json' }
+    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[
+      {time:1.0,lane:1},{time:1.5,lane:2},{time:2.0,lane:3},{time:2.5,lane:4},
+      {time:3.0,lane:1},{time:3.5,lane:2},{time:4.0,lane:3},{time:4.5,lane:4},
+      {time:5.0,lane:1},{time:5.5,lane:2},{time:6.0,lane:3},{time:6.5,lane:4},
+      {time:7.0,lane:1},{time:7.5,lane:2},{time:8.0,lane:3},{time:8.5,lane:4},
+      {time:9.0,lane:1},{time:9.5,lane:2},{time:10.0,lane:3},{time:10.5,lane:4},
+      {time:11.0,lane:1},{time:11.5,lane:2},{time:12.0,lane:3},{time:12.5,lane:4},
+      {time:13.0,lane:1},{time:13.5,lane:2},{time:14.0,lane:3},{time:14.5,lane:4},
+      {time:15.0,lane:1},{time:15.5,lane:2},{time:16.0,lane:3},{time:16.5,lane:4},
+      {time:17.0,lane:1},{time:17.5,lane:2},{time:18.0,lane:3},{time:18.5,lane:4},
+      {time:19.0,lane:1},{time:19.5,lane:2},{time:20.0,lane:3},{time:20.5,lane:4}
+    ] }
   ];
   const $=(q)=>document.querySelector(q); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const fmtScore=(n)=>(n|0).toString().padStart(7,'0'); const fmtPct=(p)=>(p*100).toFixed(2)+'%'; const slug=(s)=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   const Store={get:(k,f)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):f;}catch(e){return f;}}, set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
@@ -162,7 +173,7 @@
             // Extract video ID and create autoplay URL
             const videoId = this.yt.src.match(/embed\/([^?]+)/)?.[1];
             if(videoId) {
-              this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&start=0`;
+              this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&start=0&mute=1`;
             }
           }
         } else if (this.mode === 'mp3') {
@@ -185,7 +196,7 @@
         // Pause YouTube video by reloading without autoplay
         const videoId = this.yt.src.match(/embed\/([^?]+)/)?.[1];
         if(videoId) {
-          this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0`;
+          this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&mute=1`;
         }
       }
     },
