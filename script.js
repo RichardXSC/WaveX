@@ -179,39 +179,43 @@
        addEventListener('resize', this._rs=()=>this.resize()); 
        this.bind(); 
        
-       // Load audio with better error handling
-       try {
-         if(chart.dataUrl){ 
-           await Audio.useDataUrl(chart.dataUrl); 
-         } else if(chart.mp3){ 
-           if(chart.mp3.startsWith('data:')) {
-             await Audio.useDataUrl(chart.mp3);
-           } else if(chart.mp3.startsWith('http') || chart.mp3.startsWith('/')) {
-             // Handle both full URLs and server paths
-             const mp3Url = chart.mp3.startsWith('/') ? `${SERVER_URL}${chart.mp3}` : chart.mp3;
-             console.log('Loading MP3 from:', mp3Url);
-             
-             // Try to fetch remote MP3 and convert to data URL
-             const response = await fetch(mp3Url);
-             if(response.ok) {
-               const blob = await response.blob();
-               const dataUrl = await fileToDataURL(blob);
-               await Audio.useDataUrl(dataUrl);
-               console.log('MP3 loaded successfully from server');
-             } else {
-               throw new Error(`Failed to fetch remote MP3: ${response.status} ${response.statusText}`);
-             }
-           } else {
-             // Local file path
-             await Audio.useDataUrl(chart.mp3);
-           }
-         } else { 
-           Audio.mode='none'; 
-         }
-       } catch(audioError) {
-         console.warn('Audio loading failed:', audioError);
-         Audio.mode='none';
-       }
+               // Load audio with better error handling
+        try {
+          if(chart.dataUrl){ 
+            await Audio.useDataUrl(chart.dataUrl); 
+            console.log('Loaded audio from dataUrl');
+          } else if(chart.mp3){ 
+            if(chart.mp3.startsWith('data:')) {
+              await Audio.useDataUrl(chart.mp3);
+              console.log('Loaded audio from data URL');
+            } else if(chart.mp3.startsWith('http') || chart.mp3.startsWith('/')) {
+              // Handle both full URLs and server paths
+              const mp3Url = chart.mp3.startsWith('/') ? `${SERVER_URL}${chart.mp3}` : chart.mp3;
+              console.log('Loading MP3 from:', mp3Url);
+              
+              // Try to fetch remote MP3 and convert to data URL
+              const response = await fetch(mp3Url);
+              if(response.ok) {
+                const blob = await response.blob();
+                const dataUrl = await fileToDataURL(blob);
+                await Audio.useDataUrl(dataUrl);
+                console.log('MP3 loaded successfully from server');
+              } else {
+                throw new Error(`Failed to fetch remote MP3: ${response.status} ${response.statusText}`);
+              }
+            } else {
+              // Local file path
+              await Audio.useDataUrl(chart.mp3);
+              console.log('Loaded audio from local path');
+            }
+          } else { 
+            console.log('No audio found in chart');
+            Audio.mode='none'; 
+          }
+        } catch(audioError) {
+          console.warn('Audio loading failed:', audioError);
+          Audio.mode='none';
+        }
        
        await this.primePlayback(); 
        await this.countdown(); 
@@ -226,12 +230,33 @@
     async primePlayback(){
       try{
         if(Audio.mode==='mp3'){
-          await Audio.play(); Audio.pause(); Audio.seek(0);
+          console.log('Priming audio playback...');
+          await Audio.play(); 
+          Audio.pause(); 
+          Audio.seek(0);
+          console.log('Audio primed successfully');
+        } else {
+          console.log('Audio mode is not mp3:', Audio.mode);
         }
-      }catch(e){}
+      }catch(e){
+        console.warn('Failed to prime audio:', e);
+      }
     },
     async countdown(){ const el=$('#countdown'); for(const s of ['3','2','1','GO!']){ el.textContent=s; el.classList.add('flash'); await new Promise(r=>setTimeout(r, s==='GO!'?400:600)); el.classList.remove('flash'); } el.textContent=''; },
-    bind(){ if(this._keys) return; this._keys=(e)=>{ const lane=KEY_TO_LANE[e.key.toLowerCase()]; if(!lane) return; if(e.type==='keydown'){ if(!this.pressed[lane]){ this.pressed[lane]=true; laneFlash(lane,true); this.hit(lane);} } else { this.pressed[lane]=false; laneFlash(lane,false);} }; addEventListener('keydown',this._keys); addEventListener('keyup',this._keys); $('#pauseBtn').onclick=()=>this.pause(); $('#resumeBtn').onclick=()=>this.resume(); $('#restartBtn').onclick=()=>{ stopResultSong(); this.restart(); }; $('#quitBtn').onclick=()=>{ stopResultSong(); this.quit(); }; $('#resultRetry').onclick=()=>{ stopResultSong(); this.restart(); }; $('#resultToSelect').onclick=()=>{ stopResultSong(); this.stop(); Screens.go('screen-select'); }; },
+    bind(){ if(this._keys) return; this._keys=(e)=>{ const lane=KEY_TO_LANE[e.key.toLowerCase()]; if(!lane) return; if(e.type==='keydown'){ if(!this.pressed[lane]){ this.pressed[lane]=true; laneFlash(lane,true); this.hit(lane);} } else { this.pressed[lane]=false; laneFlash(lane,false);} }; addEventListener('keydown',this._keys); addEventListener('keyup',this._keys); $('#pauseBtn').onclick=()=>this.pause(); $('#resumeBtn').onclick=()=>this.resume(); $('#restartBtn').onclick=()=>{ stopResultSong(); this.restart(); }; $('#quitBtn').onclick=()=>{ stopResultSong(); this.quit(); }; $('#resultRetry').onclick=()=>{ stopResultSong(); this.restart(); }; $('#resultToSelect').onclick=()=>{ stopResultSong(); this.stop(); Screens.go('screen-select'); }; 
+      
+      // Add debug button to gameplay screen
+      const debugBtn = document.createElement('button');
+      debugBtn.id = 'gameDebug';
+      debugBtn.className = 'btn';
+      debugBtn.textContent = 'Debug Audio';
+      debugBtn.style.position = 'fixed';
+      debugBtn.style.top = '10px';
+      debugBtn.style.right = '10px';
+      debugBtn.style.zIndex = '1000';
+      debugBtn.onclick = () => this.debugAudio();
+      document.body.appendChild(debugBtn);
+    },
     pause(){ if(!this.running||this.paused) return; this.paused=true; Audio.pause(); $('#pauseMenu').classList.remove('hidden'); },
     resume(){ if(!this.paused) return; this.paused=false; Audio.play(); $('#pauseMenu').classList.add('hidden'); requestAnimationFrame(t=>{ this.lastMs=t; this.frame(t);}); },
     restart(){ 
@@ -256,6 +281,12 @@
     $('#pauseMenu').classList.add('hidden'); 
     $('#resultMenu').classList.add('hidden'); 
     [1,2,3,4].forEach(l=>laneFlash(l,false)); 
+    
+    // Remove debug button
+    const debugBtn = document.getElementById('gameDebug');
+    if(debugBtn) {
+      document.body.removeChild(debugBtn);
+    }
   },
     frame(ts){
       if(!this.running) return;
@@ -313,6 +344,32 @@
       }
     },
     updateHud(){ const tj=this.judge.perfect+this.judge.great+this.judge.good+this.judge.miss; const acc=tj?((this.judge.perfect*ACC.perfect+this.judge.great*ACC.great+this.judge.good*ACC.good)/tj):1; $('#hudScore').textContent=fmtScore(this.score); $('#hudAcc').textContent=fmtPct(acc); $('#hudCombo').textContent=this.combo+'x'; $('#healthFill').style.transform=`scaleY(${this.health||1})`; },
+    
+    // Debug function to check audio status during gameplay
+    debugAudio() {
+      const status = [];
+      status.push(`Chart: ${this.chart.title || 'Untitled'}`);
+      status.push(`MP3: ${this.chart.mp3 ? 'Yes' : 'No'}`);
+      if(this.chart.mp3) {
+        if(this.chart.mp3.startsWith('data:')) {
+          status.push('MP3 Type: Data URL');
+          status.push(`MP3 Size: ~${Math.round(this.chart.mp3.length * 0.75 / 1024)}KB`);
+        } else if(this.chart.mp3.startsWith('http') || this.chart.mp3.startsWith('/')) {
+          status.push('MP3 Type: Server URL');
+          status.push(`MP3 URL: ${this.chart.mp3}`);
+        } else {
+          status.push('MP3 Type: Local Path');
+          status.push(`MP3 Path: ${this.chart.mp3}`);
+        }
+      }
+      status.push(`Notes: ${this.chart.notes.length}`);
+      status.push(`Audio Mode: ${Audio.mode}`);
+      status.push(`Audio Ready: ${Audio.el && Audio.el.readyState >= 1 ? 'Yes' : 'No'}`);
+      status.push(`Audio Current Time: ${Audio.time()}`);
+      status.push(`Audio Duration: ${Audio.el ? Audio.el.duration : 'Unknown'}`);
+      
+      alert('Game Audio Debug Info:\n' + status.join('\n'));
+    },
     finish(failed){
       this.running=false;
       const tj=this.judge.perfect+this.judge.great+this.judge.good+this.judge.miss;
