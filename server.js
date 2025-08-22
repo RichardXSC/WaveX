@@ -28,9 +28,30 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PUBLIC_DIR = path.resolve('.');
+// Use absolute paths that work on Render
+const PUBLIC_DIR = process.env.NODE_ENV === 'production' 
+  ? path.join(process.cwd(), 'public') 
+  : path.resolve('.');
 const SONGS_DIR = path.join(PUBLIC_DIR, 'songs');
-fs.mkdirSync(SONGS_DIR, { recursive: true });
+
+// Ensure directories exist with better error handling
+try {
+  if (!fs.existsSync(PUBLIC_DIR)) {
+    fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+    console.log('Created public directory:', PUBLIC_DIR);
+  }
+  if (!fs.existsSync(SONGS_DIR)) {
+    fs.mkdirSync(SONGS_DIR, { recursive: true });
+    console.log('Created songs directory:', SONGS_DIR);
+  }
+} catch (error) {
+  console.error('Failed to create directories:', error);
+  // Fallback to current working directory
+  const fallbackDir = process.cwd();
+  console.log('Using fallback directory:', fallbackDir);
+  const PUBLIC_DIR = fallbackDir;
+  const SONGS_DIR = path.join(fallbackDir, 'songs');
+}
 
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
@@ -49,6 +70,58 @@ const upload = multer({ storage });
 // Test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ message: 'WaveX server is running!', timestamp: new Date().toISOString() });
+});
+
+// Debug endpoint to check file system status
+app.get('/api/debug', (req, res) => {
+  try {
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      cwd: process.cwd(),
+      nodeEnv: process.env.NODE_ENV,
+      publicDir: PUBLIC_DIR,
+      songsDir: SONGS_DIR,
+      dataDir: DATA_DIR,
+      chartsFile: CHARTS_FILE,
+      directories: {},
+      files: {}
+    };
+    
+    // Check directory existence
+    [PUBLIC_DIR, SONGS_DIR, DATA_DIR].forEach(dir => {
+      try {
+        debugInfo.directories[dir] = {
+          exists: fs.existsSync(dir),
+          readable: fs.accessSync(dir, fs.constants.R_OK) ? 'Yes' : 'No',
+          writable: fs.accessSync(dir, fs.constants.W_OK) ? 'Yes' : 'No'
+        };
+      } catch (e) {
+        debugInfo.directories[dir] = { error: e.message };
+      }
+    });
+    
+    // Check file existence
+    [CHARTS_FILE, path.join(DATA_DIR, 'charts.json')].forEach(file => {
+      try {
+        if (fs.existsSync(file)) {
+          const stats = fs.statSync(file);
+          debugInfo.files[file] = {
+            exists: true,
+            size: stats.size,
+            modified: stats.mtime
+          };
+        } else {
+          debugInfo.files[file] = { exists: false };
+        }
+      } catch (e) {
+        debugInfo.files[file] = { error: e.message };
+      }
+    });
+    
+    res.json(debugInfo);
+  } catch (e) {
+    res.status(500).json({ error: 'Debug failed: ' + e.message });
+  }
 });
 
 // Upload endpoint: returns a public URL for the MP3 file
@@ -91,12 +164,31 @@ const slug = (str) => {
     .replace(/(^-|-$)/g, '');
 };
 
-// Chart storage endpoints
-const CHARTS_FILE = path.join(PUBLIC_DIR, 'charts.json');
+// Chart storage endpoints - use a more reliable path
+const CHARTS_FILE = path.join(process.cwd(), 'charts.json');
 
-// Ensure charts file exists
-if (!fs.existsSync(CHARTS_FILE)) {
-  fs.writeFileSync(CHARTS_FILE, JSON.stringify([]));
+// Ensure charts file exists with better error handling
+try {
+  if (!fs.existsSync(CHARTS_FILE)) {
+    fs.writeFileSync(CHARTS_FILE, JSON.stringify([]));
+    console.log('Created charts file:', CHARTS_FILE);
+  } else {
+    console.log('Using existing charts file:', CHARTS_FILE);
+  }
+} catch (error) {
+  console.error('Failed to create charts file:', error);
+  // Try alternative location
+  const altChartsFile = path.join(process.cwd(), 'data', 'charts.json');
+  try {
+    if (!fs.existsSync(path.dirname(altChartsFile))) {
+      fs.mkdirSync(path.dirname(altChartsFile), { recursive: true });
+    }
+    fs.writeFileSync(altChartsFile, JSON.stringify([]));
+    console.log('Created charts file in alternative location:', altChartsFile);
+    const CHARTS_FILE = altChartsFile;
+  } catch (altError) {
+    console.error('Failed to create alternative charts file:', altError);
+  }
 }
 
 // Ensure songs directory exists
@@ -104,10 +196,44 @@ if (!fs.existsSync(SONGS_DIR)) {
   fs.mkdirSync(SONGS_DIR, { recursive: true });
 }
 
+// Create data directory for persistent storage
+const DATA_DIR = path.join(process.cwd(), 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  console.log('Created data directory:', DATA_DIR);
+}
+
 // Get all charts
 app.get('/api/charts', (req, res) => {
   try {
-    const charts = JSON.parse(fs.readFileSync(CHARTS_FILE, 'utf8'));
+    // Try multiple locations for charts
+    const chartLocations = [
+      CHARTS_FILE,
+      path.join(DATA_DIR, 'charts.json'),
+      path.join(process.cwd(), 'charts.json')
+    ];
+    
+    let charts = [];
+    let loadedFrom = '';
+    
+    for (const chartPath of chartLocations) {
+      try {
+        if (fs.existsSync(chartPath)) {
+          const data = fs.readFileSync(chartPath, 'utf8');
+          charts = JSON.parse(data);
+          loadedFrom = chartPath;
+          console.log('Loaded charts from:', chartPath, 'Count:', charts.length);
+          break;
+        }
+      } catch (readError) {
+        console.warn('Failed to read from:', chartPath, readError.message);
+      }
+    }
+    
+    if (charts.length === 0) {
+      console.log('No charts found, returning empty array');
+    }
+    
     res.json(charts);
   } catch (e) {
     console.error('Error reading charts:', e);
@@ -119,11 +245,25 @@ app.get('/api/charts', (req, res) => {
 app.post('/api/charts', express.json(), (req, res) => {
   try {
     const chart = req.body;
+    console.log('Received chart data:', { title: chart.title, artist: chart.artist, notesCount: chart.notes?.length });
+    
     if (!chart.title || !chart.artist || !chart.notes || !chart.notes.length) {
       return res.status(400).json({ error: 'Invalid chart data' });
     }
     
-    const charts = JSON.parse(fs.readFileSync(CHARTS_FILE, 'utf8'));
+    // Try to read existing charts
+    let charts = [];
+    try {
+      if (fs.existsSync(CHARTS_FILE)) {
+        const data = fs.readFileSync(CHARTS_FILE, 'utf8');
+        charts = JSON.parse(data);
+        console.log('Loaded existing charts:', charts.length);
+      }
+    } catch (readError) {
+      console.warn('Failed to read existing charts, starting fresh:', readError);
+      charts = [];
+    }
+    
     chart.id = chart.id || `${slug(chart.title)}-${slug(chart.artist)}-${Date.now()}`;
     chart.createdAt = Date.now();
     chart.ratings = chart.ratings || [];
@@ -132,28 +272,55 @@ app.post('/api/charts', express.json(), (req, res) => {
     const existingIndex = charts.findIndex(c => c.id === chart.id);
     if (existingIndex >= 0) {
       charts[existingIndex] = chart;
+      console.log('Updated existing chart:', chart.title);
     } else {
       charts.push(chart);
+      console.log('Added new chart:', chart.title);
     }
     
-    // Save to disk with error handling
-    try {
-      fs.writeFileSync(CHARTS_FILE, JSON.stringify(charts, null, 2));
-      console.log('Chart published and saved to disk:', chart.title);
+    // Save to disk with multiple fallback locations
+    let saved = false;
+    const saveLocations = [
+      CHARTS_FILE,
+      path.join(DATA_DIR, 'charts.json'),
+      path.join(process.cwd(), 'charts.json')
+    ];
+    
+    for (const savePath of saveLocations) {
+      try {
+        // Ensure directory exists
+        const dir = path.dirname(savePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        fs.writeFileSync(savePath, JSON.stringify(charts, null, 2));
+        console.log('Successfully saved charts to:', savePath);
+        saved = true;
+        break;
+      } catch (writeError) {
+        console.warn('Failed to save to:', savePath, writeError.message);
+      }
+    }
+    
+    if (saved) {
+      // Create backup in data directory
+      try {
+        const backupFile = path.join(DATA_DIR, `charts_backup_${Date.now()}.json`);
+        fs.writeFileSync(backupFile, JSON.stringify(charts, null, 2));
+        console.log('Backup created:', backupFile);
+      } catch (backupError) {
+        console.warn('Failed to create backup:', backupError.message);
+      }
       
-      // Create backup
-      const backupFile = path.join(PUBLIC_DIR, `charts_backup_${Date.now()}.json`);
-      fs.writeFileSync(backupFile, JSON.stringify(charts, null, 2));
-      console.log('Backup created:', backupFile);
-      
-      res.json({ success: true, chart });
-    } catch (writeError) {
-      console.error('Failed to write chart to disk:', writeError);
+      res.json({ success: true, chart, savedTo: 'server' });
+    } else {
+      console.error('Failed to save chart to any location');
       res.status(500).json({ error: 'Failed to save chart to disk' });
     }
   } catch (e) {
     console.error('Error publishing chart:', e);
-    res.status(500).json({ error: 'Failed to publish chart' });
+    res.status(500).json({ error: 'Failed to publish chart: ' + e.message });
   }
 });
 
