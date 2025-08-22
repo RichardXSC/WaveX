@@ -402,16 +402,19 @@
 
   // Editor
   const Editor={ playing:false, recording:false, chart:{id:'',title:'',artist:'',difficulty:'Normal',mp3:'',artwork:'',offset:0,notes:[]}, mp3:null, artwork:null, timeline:$('#timelineCanvas'), ctx:null, zoom:3, cursor:0, lastActionStack:[],
-    init(){
-      this.ctx=this.timeline.getContext('2d'); this.resize(); addEventListener('resize',()=>this.resize());
-      $('#editorLoad').onclick=()=>this.load(); $('#editorPlay').onclick=()=>this.play(); $('#editorPause').onclick=()=>this.pause();
-      $('#editorSave').onclick=()=>this.save(); $('#editorPublish').onclick=()=>this.publish();
-      const saveMp3Btn=document.getElementById('editorSaveMp3'); if(saveMp3Btn) saveMp3Btn.onclick=()=>this.saveMp3Locally();
-      $('#editorExport').onclick=()=>this.exportJSON(); $('#editorClear').onclick=()=>this.clearNotes(); $('#editorUndo').onclick=()=>this.undo();
-      $('#timelineZoom').oninput=(e)=>this.zoom=Number(e.target.value); $('#editorOffset').oninput=(e)=>this.chart.offset=Number(e.target.value);
-      $('#mp3File').onchange=async(e)=>{ this.mp3=e.target.files[0]; if(this.mp3){ const dataUrl=await fileToDataURL(this.mp3); this.chart.mp3=dataUrl; } };
-      $('#artworkFile').onchange=async(e)=>{ this.artwork=e.target.files[0]; if(this.artwork){ const dataUrl=await fileToDataURL(this.artwork); this.chart.artwork=dataUrl; } };
-      $('#editorTitle').oninput=(e)=>this.chart.title=e.target.value; $('#editorArtist').oninput=(e)=>this.chart.artist=e.target.value; $('#editorDiff').oninput=(e)=>this.chart.difficulty=e.target.value;
+         init(){
+       this.ctx=this.timeline.getContext('2d'); this.resize(); addEventListener('resize',()=>this.resize());
+       $('#editorLoad').onclick=()=>this.load(); $('#editorPlay').onclick=()=>this.play(); $('#editorPause').onclick=()=>this.pause();
+       $('#editorSave').onclick=()=>this.save(); $('#editorPublish').onclick=()=>this.publish();
+       const saveMp3Btn=document.getElementById('editorSaveMp3'); if(saveMp3Btn) saveMp3Btn.onclick=()=>this.saveMp3Locally();
+       $('#editorExport').onclick=()=>this.exportJSON(); $('#editorClear').onclick=()=>this.clearNotes(); $('#editorUndo').onclick=()=>this.undo();
+       $('#timelineZoom').oninput=(e)=>this.zoom=Number(e.target.value); $('#editorOffset').oninput=(e)=>this.chart.offset=Number(e.target.value);
+       $('#mp3File').onchange=async(e)=>{ this.mp3=e.target.files[0]; if(this.mp3){ const dataUrl=await fileToDataURL(this.mp3); this.chart.mp3=dataUrl; } };
+       $('#artworkFile').onchange=async(e)=>{ this.artwork=e.target.files[0]; if(this.artwork){ const dataUrl=await fileToDataURL(this.artwork); this.chart.artwork=dataUrl; } };
+       $('#editorTitle').oninput=(e)=>this.chart.title=e.target.value; $('#editorArtist').oninput=(e)=>this.chart.artist=e.target.value; $('#editorDiff').oninput=(e)=>this.chart.difficulty=e.target.value;
+       
+       // Add import JSON functionality
+       this.setupImportJSON();
       // Recording with DFJK during playback
       addEventListener('keydown',(e)=>{
         if(Screens.cur!=='screen-editor') return;
@@ -559,7 +562,126 @@
     exportJSON(){ const blob=new Blob([JSON.stringify(this.chart,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(this.chart.title||'chart')}.json`; a.click(); URL.revokeObjectURL(url); },
     clearNotes(){ if(confirm('Clear all notes?')){ this.chart.notes=[]; this.setStatus('Cleared notes'); } },
     undo(){ const last=this.lastActionStack.pop(); if(!last) return; if(last.type==='add'){ const idx=this.chart.notes.lastIndexOf(last.note); if(idx>=0) this.chart.notes.splice(idx,1); } if(last.type==='del'){ this.chart.notes.push(last.note); this.chart.notes.sort((a,b)=>a.time-b.time); } this.setStatus('Undid last action'); },
-    setStatus(t){ const el=document.getElementById('editorStatus'); if(el) el.textContent=t; }
+    setStatus(t){ const el=document.getElementById('editorStatus'); if(el) el.textContent=t; },
+    
+    // Import JSON functionality
+    setupImportJSON() {
+      // Create import button if it doesn't exist
+      if (!document.getElementById('editorImport')) {
+        const importBtn = document.createElement('button');
+        importBtn.id = 'editorImport';
+        importBtn.className = 'btn';
+        importBtn.textContent = 'Import JSON';
+        importBtn.onclick = () => this.importJSON();
+        
+        // Insert after the Export button
+        const exportBtn = document.getElementById('editorExport');
+        if (exportBtn && exportBtn.parentNode) {
+          exportBtn.parentNode.insertBefore(importBtn, exportBtn.nextSibling);
+        }
+      }
+      
+      // Add drag and drop support for JSON files
+      this.setupDragAndDrop();
+    },
+    
+    setupDragAndDrop() {
+      const editorArea = document.getElementById('editorArea');
+      if (!editorArea) return;
+      
+      editorArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        editorArea.style.borderColor = 'var(--neon1)';
+        editorArea.style.boxShadow = '0 0 20px rgba(0,229,255,0.3)';
+      });
+      
+      editorArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        editorArea.style.borderColor = '';
+        editorArea.style.boxShadow = '';
+      });
+      
+      editorArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        editorArea.style.borderColor = '';
+        editorArea.style.boxShadow = '';
+        
+        const files = Array.from(e.dataTransfer.files);
+        const jsonFile = files.find(file => file.name.endsWith('.json'));
+        
+        if (jsonFile) {
+          this.importJSONFile(jsonFile);
+        } else {
+          alert('Please drop a JSON chart file (.json)');
+        }
+      });
+    },
+    
+    importJSON() {
+      // Create file input for JSON
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.style.display = 'none';
+      
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        this.importJSONFile(file);
+        
+        // Clean up
+        document.body.removeChild(input);
+      };
+      
+      // Trigger file selection
+      document.body.appendChild(input);
+      input.click();
+    },
+    
+    async importJSONFile(file) {
+      try {
+        const text = await file.text();
+        const chartData = JSON.parse(text);
+        
+        // Validate chart data
+        if (!chartData.title || !chartData.artist || !Array.isArray(chartData.notes)) {
+          throw new Error('Invalid chart format. Must have title, artist, and notes array.');
+        }
+        
+        // Load the chart data
+        this.chart = {
+          id: chartData.id || '',
+          title: chartData.title,
+          artist: chartData.artist,
+          difficulty: chartData.difficulty || 'Normal',
+          mp3: chartData.mp3 || '',
+          artwork: chartData.artwork || '',
+          offset: chartData.offset || 0,
+          notes: chartData.notes || []
+        };
+        
+        // Update form fields
+        $('#editorTitle').value = this.chart.title;
+        $('#editorArtist').value = this.chart.artist;
+        $('#editorDiff').value = this.chart.difficulty;
+        $('#editorOffset').value = this.chart.offset;
+        
+        // Clear current MP3 and artwork
+        this.mp3 = null;
+        this.artwork = null;
+        
+        // Update status
+        this.setStatus(`Imported: ${this.chart.title} by ${this.chart.artist} (${this.chart.notes.length} notes)`);
+        
+        // Clear action stack since this is a new chart
+        this.lastActionStack = [];
+        
+      } catch (error) {
+        console.error('Import failed:', error);
+        alert(`Failed to import chart: ${error.message}`);
+      }
+    }
   };
 
      // Wiring
