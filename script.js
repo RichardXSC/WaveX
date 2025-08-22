@@ -186,15 +186,20 @@
          } else if(chart.mp3){ 
            if(chart.mp3.startsWith('data:')) {
              await Audio.useDataUrl(chart.mp3);
-           } else if(chart.mp3.startsWith('http')) {
+           } else if(chart.mp3.startsWith('http') || chart.mp3.startsWith('/')) {
+             // Handle both full URLs and server paths
+             const mp3Url = chart.mp3.startsWith('/') ? `${SERVER_URL}${chart.mp3}` : chart.mp3;
+             console.log('Loading MP3 from:', mp3Url);
+             
              // Try to fetch remote MP3 and convert to data URL
-             const response = await fetch(chart.mp3);
+             const response = await fetch(mp3Url);
              if(response.ok) {
                const blob = await response.blob();
                const dataUrl = await fileToDataURL(blob);
                await Audio.useDataUrl(dataUrl);
+               console.log('MP3 loaded successfully from server');
              } else {
-               throw new Error('Failed to fetch remote MP3');
+               throw new Error(`Failed to fetch remote MP3: ${response.status} ${response.statusText}`);
              }
            } else {
              // Local file path
