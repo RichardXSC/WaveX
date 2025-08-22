@@ -1,13 +1,10 @@
-import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import bcrypt from 'bcrypt';
-import crypto from 'crypto';
-import dotenv from 'dotenv';
-
-// Load environment variables
-dotenv.config();
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,23 +26,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Use absolute paths that work on Render
-let PUBLIC_DIR = process.env.NODE_ENV === 'production' 
-  ? path.join(process.cwd(), 'public') 
-  : path.resolve('.');
-let SONGS_DIR = path.join(PUBLIC_DIR, 'songs');
+const PUBLIC_DIR = process.cwd();
+const SONGS_DIR = path.join(PUBLIC_DIR, 'songs');
+const DATA_DIR = path.join(PUBLIC_DIR, 'data');
+const CHARTS_FILE = path.join(DATA_DIR, 'charts.json');
 
-// Create data directory for persistent storage
-const DATA_DIR = path.join(process.cwd(), 'data');
-
-// Chart storage endpoints - use a more reliable path
-const CHARTS_FILE = path.join(process.cwd(), 'charts.json');
-
-// Ensure directories exist with better error handling
+// Ensure directories exist
 try {
-  if (!fs.existsSync(PUBLIC_DIR)) {
-    fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-    console.log('Created public directory:', PUBLIC_DIR);
-  }
   if (!fs.existsSync(SONGS_DIR)) {
     fs.mkdirSync(SONGS_DIR, { recursive: true });
     console.log('Created songs directory:', SONGS_DIR);
@@ -54,24 +41,23 @@ try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     console.log('Created data directory:', DATA_DIR);
   }
+  if (!fs.existsSync(CHARTS_FILE)) {
+    fs.writeFileSync(CHARTS_FILE, JSON.stringify([]));
+    console.log('Created charts file:', CHARTS_FILE);
+  }
 } catch (error) {
   console.error('Failed to create directories:', error);
-  // Fallback to current working directory
-  const fallbackDir = process.cwd();
-  console.log('Using fallback directory:', fallbackDir);
-  PUBLIC_DIR = fallbackDir;
-  SONGS_DIR = path.join(fallbackDir, 'songs');
 }
 
 // Serve static files from the current directory (for the game files)
-app.use(express.static(process.cwd(), { extensions: ['html'] }));
+app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
 // Serve uploaded songs and artwork files
 app.use('/songs', express.static(SONGS_DIR));
 
 // Serve the main game files
 app.get('/', (req, res) => {
-  const indexPath = path.join(process.cwd(), 'index.html');
+  const indexPath = path.join(PUBLIC_DIR, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
@@ -126,7 +112,7 @@ app.get('/api/debug', (req, res) => {
     });
     
     // Check file existence
-    [CHARTS_FILE, path.join(DATA_DIR, 'charts.json')].forEach(file => {
+    [CHARTS_FILE].forEach(file => {
       try {
         if (fs.existsSync(file)) {
           const stats = fs.statSync(file);
@@ -189,66 +175,18 @@ const slug = (str) => {
     .replace(/(^-|-$)/g, '');
 };
 
-// Ensure charts file exists with better error handling
-try {
-  if (!fs.existsSync(CHARTS_FILE)) {
-    fs.writeFileSync(CHARTS_FILE, JSON.stringify([]));
-    console.log('Created charts file:', CHARTS_FILE);
-  } else {
-    console.log('Using existing charts file:', CHARTS_FILE);
-  }
-} catch (error) {
-  console.error('Failed to create charts file:', error);
-  // Try alternative location
-  const altChartsFile = path.join(DATA_DIR, 'charts.json');
-  try {
-    if (!fs.existsSync(path.dirname(altChartsFile))) {
-      fs.mkdirSync(path.dirname(altChartsFile), { recursive: true });
-    }
-    fs.writeFileSync(altChartsFile, JSON.stringify([]));
-    console.log('Created charts file in alternative location:', altChartsFile);
-  } catch (altError) {
-    console.error('Failed to create alternative charts file:', altError);
-  }
-}
-
-// Ensure songs directory exists
-if (!fs.existsSync(SONGS_DIR)) {
-  fs.mkdirSync(SONGS_DIR, { recursive: true });
-}
-
 // Get all charts
 app.get('/api/charts', (req, res) => {
   try {
-    // Try multiple locations for charts
-    const chartLocations = [
-      CHARTS_FILE,
-      path.join(DATA_DIR, 'charts.json'),
-      path.join(process.cwd(), 'charts.json')
-    ];
-    
-    let charts = [];
-    let loadedFrom = '';
-    
-    for (const chartPath of chartLocations) {
-      try {
-        if (fs.existsSync(chartPath)) {
-          const data = fs.readFileSync(chartPath, 'utf8');
-          charts = JSON.parse(data);
-          loadedFrom = chartPath;
-          console.log('Loaded charts from:', chartPath, 'Count:', charts.length);
-          break;
-        }
-      } catch (readError) {
-        console.warn('Failed to read from:', chartPath, readError.message);
-      }
+    if (fs.existsSync(CHARTS_FILE)) {
+      const data = fs.readFileSync(CHARTS_FILE, 'utf8');
+      const charts = JSON.parse(data);
+      console.log('Loaded charts from:', CHARTS_FILE, 'Count:', charts.length);
+      res.json(charts);
+    } else {
+      console.log('Charts file not found, returning empty array');
+      res.json([]);
     }
-    
-    if (charts.length === 0) {
-      console.log('No charts found, returning empty array');
-    }
-    
-    res.json(charts);
   } catch (e) {
     console.error('Error reading charts:', e);
     res.json([]);
@@ -256,7 +194,7 @@ app.get('/api/charts', (req, res) => {
 });
 
 // Publish a new chart
-app.post('/api/charts', express.json(), (req, res) => {
+app.post('/api/charts', (req, res) => {
   try {
     const chart = req.body;
     console.log('Received chart data:', { title: chart.title, artist: chart.artist, notesCount: chart.notes?.length });
@@ -265,7 +203,7 @@ app.post('/api/charts', express.json(), (req, res) => {
       return res.status(400).json({ error: 'Invalid chart data' });
     }
     
-    // Try to read existing charts
+    // Read existing charts
     let charts = [];
     try {
       if (fs.existsSync(CHARTS_FILE)) {
@@ -292,46 +230,20 @@ app.post('/api/charts', express.json(), (req, res) => {
       console.log('Added new chart:', chart.title);
     }
     
-    // Save to disk with multiple fallback locations
-    let saved = false;
-    const saveLocations = [
-      CHARTS_FILE,
-      path.join(DATA_DIR, 'charts.json'),
-      path.join(process.cwd(), 'charts.json')
-    ];
+    // Save to disk
+    fs.writeFileSync(CHARTS_FILE, JSON.stringify(charts, null, 2));
+    console.log('Successfully saved charts to:', CHARTS_FILE);
     
-    for (const savePath of saveLocations) {
-      try {
-        // Ensure directory exists
-        const dir = path.dirname(savePath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        
-        fs.writeFileSync(savePath, JSON.stringify(charts, null, 2));
-        console.log('Successfully saved charts to:', savePath);
-        saved = true;
-        break;
-      } catch (writeError) {
-        console.warn('Failed to save to:', savePath, writeError.message);
-      }
+    // Create backup
+    try {
+      const backupFile = path.join(DATA_DIR, `charts_backup_${Date.now()}.json`);
+      fs.writeFileSync(backupFile, JSON.stringify(charts, null, 2));
+      console.log('Backup created:', backupFile);
+    } catch (backupError) {
+      console.warn('Failed to create backup:', backupError.message);
     }
     
-    if (saved) {
-      // Create backup in data directory
-      try {
-        const backupFile = path.join(DATA_DIR, `charts_backup_${Date.now()}.json`);
-        fs.writeFileSync(backupFile, JSON.stringify(charts, null, 2));
-        console.log('Backup created:', backupFile);
-      } catch (backupError) {
-        console.warn('Failed to create backup:', backupError.message);
-      }
-      
-      res.json({ success: true, chart, savedTo: 'server' });
-    } else {
-      console.error('Failed to save chart to any location');
-      res.status(500).json({ error: 'Failed to save chart to disk' });
-    }
+    res.json({ success: true, chart, savedTo: 'server' });
   } catch (e) {
     console.error('Error publishing chart:', e);
     res.status(500).json({ error: 'Failed to publish chart: ' + e.message });
@@ -339,7 +251,7 @@ app.post('/api/charts', express.json(), (req, res) => {
 });
 
 // Rate a chart
-app.post('/api/charts/:id/rate', express.json(), (req, res) => {
+app.post('/api/charts/:id/rate', (req, res) => {
   try {
     const { id } = req.params;
     const { rating, username } = req.body;
@@ -370,13 +282,13 @@ app.post('/api/charts/:id/rate', express.json(), (req, res) => {
 });
 
 // Admin authentication
-let ADMIN_PASSWORD_HASH = '$2b$10$YourHashedPasswordHere'; // We'll set this properly
+let ADMIN_PASSWORD_HASH = '$2b$10$YourHashedPasswordHere';
 const adminSessions = new Map();
 
 // Hash the admin password from environment variable
 const hashAdminPassword = async () => {
   const saltRounds = 12;
-  const adminPassword = process.env.ADMIN_PASSWORD || '19921124'; // Default for development only
+  const adminPassword = process.env.ADMIN_PASSWORD || '19921124';
   const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
   
   if (process.env.NODE_ENV === 'production') {
@@ -396,7 +308,7 @@ hashAdminPassword().then(hash => {
 });
 
 // Admin login endpoint
-app.post('/api/admin/login', express.json(), async (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
   try {
     const { password } = req.body;
     
@@ -457,16 +369,15 @@ const validateAdminSession = (req, res, next) => {
 // Get all songs for admin panel
 app.get('/api/admin/songs', validateAdminSession, (req, res) => {
   try {
-    const songsDir = path.join(PUBLIC_DIR, 'songs');
-    if (!fs.existsSync(songsDir)) {
+    if (!fs.existsSync(SONGS_DIR)) {
       return res.json([]);
     }
     
-    const files = fs.readdirSync(songsDir);
+    const files = fs.readdirSync(SONGS_DIR);
     const songs = files
       .filter(file => file.endsWith('.mp3') || file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.jpeg'))
       .map(file => {
-        const stats = fs.statSync(path.join(songsDir, file));
+        const stats = fs.statSync(path.join(SONGS_DIR, file));
         return {
           filename: file,
           size: stats.size,
@@ -487,7 +398,7 @@ app.get('/api/admin/songs', validateAdminSession, (req, res) => {
 app.delete('/api/admin/songs/:filename', validateAdminSession, (req, res) => {
   try {
     const { filename } = req.params;
-    const filePath = path.join(PUBLIC_DIR, 'songs', filename);
+    const filePath = path.join(SONGS_DIR, filename);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found' });
