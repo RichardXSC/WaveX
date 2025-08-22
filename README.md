@@ -183,10 +183,6 @@ WaveX/
 2. Configure as Web Service
 3. Set build command: `npm install`
 4. Set start command: `node server.js`
-5. **Set Environment Variables:**
-   - `ADMIN_PASSWORD`: Your admin password (e.g., `19921124`)
-   - `NODE_ENV`: `production`
-6. Deploy and get your server URL
 
 ## 🔐 Security Notes
 
