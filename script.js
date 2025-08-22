@@ -11,7 +11,7 @@
       notes:Array.from({length:64},(_,i)=>({time:0.6+i*0.5,lane:(i%4)+1})) },
     { id:'random-blitz', title:'Random Blitz', artist:'WaveX', difficulty:'Normal', mp3:'', offset:0,
       notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() },
-    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[] }
+    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[], chartFile:'Main_Levels/Teto Medicine/teto-medicine1.json' }
   ];
   const $=(q)=>document.querySelector(q); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const fmtScore=(n)=>(n|0).toString().padStart(7,'0'); const fmtPct=(p)=>(p*100).toFixed(2)+'%'; const slug=(s)=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   const Store={get:(k,f)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):f;}catch(e){return f;}}, set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
@@ -131,7 +131,7 @@
       // Create YouTube iframe if it doesn't exist
       if(!this.yt) {
         const iframe = document.createElement('iframe');
-        iframe.src = url + '?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0';
+        iframe.src = url + '?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&loop=1&playlist=' + url.match(/embed\/([^?]+)/)?.[1];
         iframe.style.position = 'fixed';
         iframe.style.top = '0';
         iframe.style.left = '0';
@@ -142,8 +142,15 @@
         iframe.style.opacity = '0.3';
         iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
         iframe.title = 'Background Video';
+        
+        // Wait for iframe to load before adding to DOM
+        iframe.onload = () => {
+          console.log('YouTube iframe loaded successfully');
+        };
+        
         document.body.appendChild(iframe);
         this.yt = iframe;
+        console.log('YouTube iframe created and added to DOM');
       }
     },
     async play() {
@@ -219,8 +226,10 @@
   const Game={running:false, paused:false, notes:[], hitIdx:0, score:0, combo:0, maxCombo:0, judge:{perfect:0,great:0,good:0,miss:0}, offset:0, speed:600, startMs:0, lastMs:0, mods:{speed:1,mirror:false,fadeIn:false}, pressed:{1:false,2:false,3:false,4:false}, health:1,
     resize(){ const area=$('#gameArea'); if(!area) return; const r=area.getBoundingClientRect(); gC.width=r.width; gC.height=r.height; this.judgeY=gC.height-80; this.lanes=[0,1,2,3].map(i=>({x:i*(r.width/4),w:(r.width/4)})); },
          async start(chart,mods){ 
+       console.log('Starting game with chart:', chart);
        this.chart=JSON.parse(JSON.stringify(chart)); 
        this.notes=this.chart.notes.slice().sort((a,b)=>a.time-b.time); 
+       console.log('Initial notes count:', this.notes.length);
        this.hitIdx=0; this.score=0; this.combo=0; this.maxCombo=0; 
        this.judge={perfect:0,great:0,good:0,miss:0}; this.health=1; 
        this.offset=chart.offset||0; 
@@ -231,7 +240,7 @@
        Screens.go('screen-game'); 
        this.resize(); 
        addEventListener('resize', this._rs=()=>this.resize()); 
-       this.bind(); 
+       this.bind();
        
                // Load audio with better error handling
         try {
@@ -271,27 +280,29 @@
                 }
               } catch(localError) {
                 console.warn('Failed to load local MP3:', localError);
-                // Try to load chart data from JSON file
-                if(chart.mp3.includes('.mp3')) {
-                  const chartPath = chart.mp3.replace('.mp3', '.json');
-                  try {
-                    const chartResponse = await fetch(chartPath);
-                    if(chartResponse.ok) {
-                      const chartData = await chartResponse.json();
-                      this.chart.notes = chartData.notes || [];
-                      this.notes = this.chart.notes.slice().sort((a,b)=>a.time-b.time);
-                      console.log('Loaded chart data from JSON file');
-                    }
-                  } catch(chartError) {
-                    console.warn('Failed to load chart data:', chartError);
-                  }
-                }
                 throw localError;
               }
             }
           } else { 
             console.log('No audio found in chart');
             Audio.mode='none'; 
+          }
+          
+          // Load chart data from JSON file if specified
+          if(chart.chartFile) {
+            try {
+              const chartResponse = await fetch(chart.chartFile);
+              if(chartResponse.ok) {
+                const chartData = await chartResponse.json();
+                this.chart.notes = chartData.notes || [];
+                this.notes = this.chart.notes.slice().sort((a,b)=>a.time-b.time);
+                console.log(`Loaded chart data from ${chart.chartFile}: ${this.notes.length} notes`);
+              } else {
+                console.warn(`Failed to load chart file: ${chartResponse.status}`);
+              }
+            } catch(chartError) {
+              console.warn('Failed to load chart data:', chartError);
+            }
           }
           
           // Load YouTube video if specified
