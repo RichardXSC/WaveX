@@ -147,7 +147,7 @@ app.post('/api/charts/:id/rate', express.json(), (req, res) => {
 });
 
 // Admin authentication
-const ADMIN_PASSWORD_HASH = '$2b$10$YourHashedPasswordHere'; // We'll set this properly
+let ADMIN_PASSWORD_HASH = '$2b$10$YourHashedPasswordHere'; // We'll set this properly
 const adminSessions = new Map();
 
 // Hash the admin password from environment variable
