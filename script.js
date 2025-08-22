@@ -11,7 +11,7 @@
       notes:Array.from({length:64},(_,i)=>({time:0.6+i*0.5,lane:(i%4)+1})) },
     { id:'random-blitz', title:'Random Blitz', artist:'WaveX', difficulty:'Normal', mp3:'', offset:0,
       notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() },
-    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'./Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'./Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0?mute=1', offset:0, notes:[
+    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0?mute=1', offset:0, notes:[
       {time:1.0,lane:1},{time:1.5,lane:2},{time:2.0,lane:3},{time:2.5,lane:4},
       {time:3.0,lane:1},{time:3.5,lane:2},{time:4.0,lane:3},{time:4.5,lane:4},
       {time:5.0,lane:1},{time:5.5,lane:2},{time:6.0,lane:3},{time:6.5,lane:4},
@@ -314,6 +314,42 @@
       console.warn('Failed to play result song:', e); 
     } 
   }
+  
+  // Debug function to test file access - call this from console
+  window.testFileAccess = async function() {
+    console.log('=== Testing File Access ===');
+    
+    const files = [
+      'Main_Levels/Teto Medicine/Teto Medicine1.mp3',
+      'Main_Levels/Teto Medicine/Medicine_album_cover.jpg',
+      'Main_Levels/Teto Medicine/teto-medicine1.json'
+    ];
+    
+    for (const file of files) {
+      try {
+        console.log(`Testing: ${file}`);
+        const response = await fetch(file);
+        if (response.ok) {
+          const blob = await response.blob();
+          console.log(`✅ ${file} - OK (${blob.size} bytes, ${blob.type})`);
+        } else {
+          console.log(`❌ ${file} - Failed: ${response.status} ${response.statusText}`);
+        }
+      } catch (error) {
+        console.log(`❌ ${file} - Error: ${error.message}`);
+      }
+    }
+    
+    // Test the chart definition
+    const chart = BuiltIn.find(c => c.id === 'teto-medicine');
+    if (chart) {
+      console.log('Chart found:', chart.title);
+      console.log('MP3 path:', chart.mp3);
+      console.log('Notes count:', chart.notes.length);
+    } else {
+      console.log('Chart not found!');
+    }
+  };
   function stopResultSong(){}
 
   // Screens

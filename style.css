@@ -320,6 +320,18 @@ label.file span { display: inline-block; padding: 10px 12px; border: 1px dashed 
   transform: translateY(-2px);
 }
 
+.test-btn {
+  background: linear-gradient(45deg, #51cf66, #40c057);
+  border: 1px solid #51cf66;
+  color: white;
+  font-weight: 600;
+}
+
+.test-btn:hover {
+  background: linear-gradient(45deg, #40c057, #51cf66);
+  transform: translateY(-2px);
+}
+
 .admin-modal {
   max-width: 900px;
   max-height: 80vh;
