@@ -25,7 +25,77 @@
   }
   const Options={get(){return Store.get(SKEY.options,DefaultOptions)}, set(v){Store.set(SKEY.options,v); document.body.setAttribute('data-theme', v.theme==='neon'?'':v.theme); Audio.setVolume(v.volume);}};
   const Profile={get(){return Store.get(SKEY.profile,DefaultProfile)}, set(v){Store.set(SKEY.profile,v)}};
-  const Charts={list(){return[...BuiltIn,...Store.get(SKEY.charts,[])]}, save(c){const L=Store.get(SKEY.charts,[]); const i=L.findIndex(x=>x.id===c.id); if(i>=0)L[i]=c; else L.push(c); Store.set(SKEY.charts,L);}, publish(c,a){const C=Store.get(SKEY.community,[]); const i=C.findIndex(x=>x.id===c.id); const e={...c,author:a,ratings:[],createdAt:Date.now()}; if(i>=0)C[i]=e; else C.push(e); Store.set(SKEY.community,C);}, community(){return Store.get(SKEY.community,[])}};
+  const Charts={
+  async list(){
+    try {
+      const response = await fetch('https://wavex-7f4p.onrender.com/api/charts');
+      const serverCharts = await response.json();
+      return [...BuiltIn, ...serverCharts];
+    } catch (e) {
+      console.warn('Failed to fetch server charts, using local:', e);
+      return [...BuiltIn, ...Store.get(SKEY.charts,[])];
+    }
+  },
+  save(c){
+    const L=Store.get(SKEY.charts,[]); 
+    const i=L.findIndex(x=>x.id===c.id); 
+    if(i>=0)L[i]=c; 
+    else L.push(c); 
+    Store.set(SKEY.charts,L);
+  },
+  async publish(c,a){
+    try {
+      const chartData = {
+        ...c,
+        author: a,
+        ratings: c.ratings || [],
+        createdAt: Date.now()
+      };
+      
+      const response = await fetch('https://wavex-7f4p.onrender.com/api/charts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chartData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('Chart published to server:', result);
+      
+      // Also save locally as backup
+      const C=Store.get(SKEY.community,[]); 
+      const i=C.findIndex(x=>x.id===c.id); 
+      if(i>=0)C[i]=chartData; 
+      else C.push(chartData); 
+      Store.set(SKEY.community,C);
+      
+      return true;
+    } catch (e) {
+      console.error('Failed to publish to server:', e);
+      // Fallback to local storage
+      const C=Store.get(SKEY.community,[]); 
+      const i=C.findIndex(x=>x.id===c.id); 
+      const chartData = {...c,author:a,ratings:[],createdAt:Date.now()};
+      if(i>=0)C[i]=chartData; 
+      else C.push(chartData); 
+      Store.set(SKEY.community,C);
+      return false;
+    }
+  },
+  async community(){
+    try {
+      const response = await fetch('https://wavex-7f4p.onrender.com/api/charts');
+      const serverCharts = await response.json();
+      return serverCharts;
+    } catch (e) {
+      console.warn('Failed to fetch community charts, using local:', e);
+      return Store.get(SKEY.community,[]);
+    }
+  }
+};
   const Boards={get:(id)=>(Store.get(SKEY.leader,{}))[id]||[], put(id,e){const d=Store.get(SKEY.leader,{}); d[id]=[...(d[id]||[]),e].sort((a,b)=>b.score-a.score).slice(0,20); Store.set(SKEY.leader,d);}};
 
   // Background
@@ -260,31 +330,68 @@
   // UI
   const UI={
     top(){ const p=Profile.get(); $('#userName').textContent=p.username||'Guest'; $('#userLevel').textContent='Lv. '+(p.level||1); },
-    loadSongs(){ const q=($('#songSearch').value||'').toLowerCase(); const d=$('#difficultyFilter').value||''; const list=$('#songList'); list.innerHTML='';
-      for(const c of Charts.list().filter(c=>{const s=`${c.title} ${c.artist} ${c.difficulty}`.toLowerCase(); return(!q||s.includes(q))&&(!d||c.difficulty===d);})){ const card=document.createElement('div'); card.className='song-card';
-        card.innerHTML=`
-          <img src="${c.artwork || 'https://via.placeholder.com/100x100?text=No+Artwork'}" alt="Artwork" class="song-artwork" />
-          <div class="title">${c.title}</div>
-          <div class="meta">${c.artist} • <span class="tag">${c.difficulty||'Normal'}</span></div>
-          <div class="actions"><button class="btn primary">Play</button><button class="btn">Details</button></div>`;
-        card.querySelector('.btn.primary').onclick=()=>Game.start(c);
-        card.querySelectorAll('.btn')[1].onclick=()=>alert(`${c.title}\n${c.artist}\n${c.difficulty}`);
-        list.appendChild(card);
+    async loadSongs(){ 
+      const q=($('#songSearch').value||'').toLowerCase(); 
+      const d=$('#difficultyFilter').value||''; 
+      const list=$('#songList'); 
+      list.innerHTML='';
+      
+      try {
+        const charts = await Charts.list();
+        for(const c of charts.filter(c=>{
+          const s=`${c.title} ${c.artist} ${c.difficulty}`.toLowerCase(); 
+          return(!q||s.includes(q))&&(!d||c.difficulty===d);
+        })){ 
+          const card=document.createElement('div'); 
+          card.className='song-card';
+          card.innerHTML=`
+            <img src="${c.artwork || 'https://via.placeholder.com/100x100?text=No+Artwork'}" alt="Artwork" class="song-artwork" />
+            <div class="title">${c.title}</div>
+            <div class="meta">${c.artist} • <span class="tag">${c.difficulty||'Normal'}</span></div>
+            <div class="actions"><button class="btn primary">Play</button><button class="btn">Details</button></div>`;
+          card.querySelector('.btn.primary').onclick=()=>Game.start(c);
+          card.querySelectorAll('.btn')[1].onclick=()=>alert(`${c.title}\n${c.artist}\n${c.difficulty}`);
+          list.appendChild(card);
+        }
+      } catch (e) {
+        console.error('Failed to load songs:', e);
+        list.innerHTML = '<div class="error">Failed to load songs</div>';
       }
     },
-    loadCommunity(){ const el=$('#communityList'); el.innerHTML='';
-      for(const c of Charts.community()){
-        const avg=c.ratings&&c.ratings.length?(c.ratings.reduce((a,b)=>a+b,0)/c.ratings.length).toFixed(1):'—';
-        const hasAudio = !!(c.mp3 || c.dataUrl);
-        const card=document.createElement('div'); card.className='song-card';
-        card.innerHTML=`
-          <div class="title">${c.title}</div>
-          <div class="meta">${c.artist} • ${c.difficulty} • by ${c.author} • ${hasAudio ? 'Audio: MP3' : 'Audio: —'} • ★ ${avg}</div>
-          <div class="actions"><button class="btn primary">Play</button><button class="btn">Download</button><button class="btn">Rate ★</button></div>`;
-        card.querySelector('.btn.primary').onclick=()=>{ Game.start(c); };
-        card.querySelectorAll('.btn')[1].onclick=()=>{ const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(c.title)}.json`; a.click(); URL.revokeObjectURL(url); };
-        card.querySelectorAll('.btn')[2].onclick=()=>{ const v=Number(prompt('Rate 1-5')); if(!v||v<1||v>5) return; const comm=Store.get(SKEY.community,[]); const i=comm.findIndex(x=>x.id===c.id); if(i>=0){ comm[i].ratings=(comm[i].ratings||[]).concat(v); Store.set(SKEY.community,comm); UI.loadCommunity(); } };
-        el.appendChild(card);
+    async loadCommunity(){ 
+      const el=$('#communityList'); 
+      el.innerHTML='<div class="loading">Loading community charts...</div>';
+      
+      try {
+        const charts = await Charts.community();
+        el.innerHTML='';
+        
+        for(const c of charts){
+          const avg=c.ratings&&c.ratings.length?(c.ratings.reduce((a,b)=>a+b,0)/c.ratings.length).toFixed(1):'—';
+          const hasAudio = !!(c.mp3 || c.dataUrl);
+          const card=document.createElement('div'); 
+          card.className='song-card';
+          card.innerHTML=`
+            <div class="title">${c.title}</div>
+            <div class="meta">${c.artist} • ${c.difficulty} • by ${c.author} • ${hasAudio ? 'Audio: MP3' : 'Audio: —'} • ★ ${avg}</div>
+            <div class="actions"><button class="btn primary">Play</button><button class="btn">Download</button><button class="btn">Rate ★</button></div>`;
+          card.querySelector('.btn.primary').onclick=()=>{ Game.start(c); };
+          card.querySelectorAll('.btn')[1].onclick=()=>{ const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(c.title)}.json`; a.click(); URL.revokeObjectURL(url); };
+          card.querySelectorAll('.btn')[2].onclick=()=>{ 
+            const v=Number(prompt('Rate 1-5')); 
+            if(!v||v<1||v>5) return; 
+            // Rate on server
+            fetch(`https://wavex-7f4p.onrender.com/api/charts/${c.id}/rate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rating: v, username: Profile.get().username || 'Guest' })
+            }).then(() => UI.loadCommunity()).catch(e => console.error('Rating failed:', e));
+          };
+          el.appendChild(card);
+        }
+      } catch (e) {
+        console.error('Failed to load community charts:', e);
+        el.innerHTML = '<div class="error">Failed to load community charts</div>';
       }
     },
     loadProfile(){ const p=Profile.get(); $('#profileName').value=p.username||''; $('#profileLevel').textContent=p.level||1; $('#profileXP').textContent=p.xp||0; $('#profilePlays').textContent=p.plays||0; $('#profileBestAcc').textContent=fmtPct(p.bestAcc||0); const un=$('#unlockGrid'); un.innerHTML=''; for(const th of ['neon','ice','sunset','mono']){ const owned=(p.unlocks?.themes||[]).includes(th); const d=document.createElement('div'); d.className='chip'; d.textContent=`Theme: ${th} ${owned?'✓':'✖'}`; un.appendChild(d);} },
@@ -375,7 +482,9 @@
           const formData = new FormData();
           formData.append('mp3', blob, fileName);
           
-          const response = await fetch('/api/upload', {
+          // Use your Render server URL here
+          const SERVER_URL = 'https://wavex-7f4p.onrender.com'; // Replace with your actual Render URL
+          const response = await fetch(`${SERVER_URL}/api/upload`, {
             method: 'POST',
             body: formData
           });
@@ -404,7 +513,7 @@
           const formData = new FormData();
           formData.append('artwork', blob, fileName);
           
-          const response = await fetch('/api/upload-artwork', { // New endpoint for artwork
+          const response = await fetch(`${SERVER_URL}/api/upload-artwork`, { // New endpoint for artwork
             method: 'POST',
             body: formData
           });
@@ -424,9 +533,14 @@
       }
       
       // Store chart in local community charts
-      Charts.publish(this.chart, p.username);
-      this.setStatus('Chart published to community!');
-      alert('Chart published successfully!');
+      const published = await Charts.publish(this.chart, p.username);
+      if (published) {
+        this.setStatus('Chart published to server!');
+        alert('Chart published successfully to server!');
+      } else {
+        this.setStatus('Chart saved locally (server failed)');
+        alert('Chart saved locally but server upload failed');
+      }
     },
     saveMp3Locally(){
       try{
