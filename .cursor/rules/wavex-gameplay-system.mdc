@@ -1,0 +1,64 @@
+# WaveX Gameplay System Guide
+
+## Core Gameplay Loop
+The `Game` object in [script.js](mdc:script.js) manages the main gameplay:
+
+### Game States
+- **Initialization**: Chart loading, audio setup, note sorting
+- **Countdown**: 3-2-1 countdown before song starts
+- **Playing**: Active gameplay with note scrolling and input handling
+- **Paused**: Game paused with resume/restart options
+- **Results**: Score display, rank calculation, XP rewards
+
+### Note System
+- **Note Structure**: `{time: number, lane: 1-4}`
+- **Lane Mapping**: D=1, F=2, J=3, K=4
+- **Timing Windows**: Perfect (±50ms), Great (±100ms), Good (±150ms), Miss (>150ms)
+- **Scoring**: Perfect=300, Great=100, Good=50, Miss=0
+
+### Input Handling
+- **Key Bindings**: D, F, J, K for lanes 1-4
+- **Lane Press Effects**: Visual feedback when keys are pressed
+- **Combo System**: Consecutive hits increase combo multiplier
+- **Health System**: Misses reduce health (if enabled in options)
+
+## Chart System
+### Built-in Charts
+Located in `BuiltInCharts` array:
+- **Random Blitz**: Generated random notes for testing
+- **Teto Medicine**: Custom chart with specific MP3 and artwork
+
+### Chart Loading
+- **Built-in Notes**: Direct note arrays in chart definition
+- **External JSON**: `chartFile` property for loading from external files
+- **Note Sorting**: Notes automatically sorted by time for efficient rendering
+
+### Chart Editor Integration
+- **Recording Mode**: Place notes during MP3 playback
+- **Timeline Visualization**: Canvas-based timeline with zoom controls
+- **Export**: Generate JSON files for sharing and publishing
+
+## Performance and Timing
+### Frame Rate
+- Uses `requestAnimationFrame` for smooth 60fps gameplay
+- Note positions calculated based on current time and scroll speed
+
+### Audio Sync
+- `this.audioStartTime` tracks when audio started
+- `Game.time()` returns `Audio.time() - this.audioStartTime`
+- Offset adjustments for chart timing calibration
+
+### Rendering
+- Canvas-based rendering for notes, lanes, and HUD
+- Responsive canvas sizing with resize event handling
+- Background animations and particle effects
+
+## Debugging Gameplay Issues
+- **Notes not appearing**: Check note array length and timing values
+- **Audio sync problems**: Verify offset values and audio loading
+- **Performance issues**: Monitor frame rate and note count
+- **Input lag**: Check browser performance and audio buffer settings
+description:
+globs:
+alwaysApply: false
+---

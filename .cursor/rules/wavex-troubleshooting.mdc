@@ -1,0 +1,150 @@
+# WaveX Troubleshooting Guide
+
+## Common Issues and Solutions
+
+### Audio Problems
+
+#### "Chart and audio is not playing"
+**Symptoms**: No sound when starting a chart, notes don't appear
+**Debugging Steps**:
+1. Open browser console (F12 → Console)
+2. Look for "Attempting to load local MP3 from:" messages
+3. Check for "Loaded audio from path successfully:" confirmations
+4. Verify file paths exist in project structure
+
+**Common Causes**:
+- MP3 file not found at specified path
+- File path format incorrect (relative vs absolute)
+- CORS issues with remote files
+- Audio format not supported by browser
+
+**Solutions**:
+- Ensure MP3 files exist in correct directories
+- Check `chart.mp3` property in chart definition
+- Use absolute paths or data URLs for reliability
+- Verify MP3 files are valid and not corrupted
+
+#### "Songs are not playing when level is playing"
+**Symptoms**: Game starts but no audio playback
+**Debugging Steps**:
+1. Check `Audio.mode` in console
+2. Verify audio loading completed successfully
+3. Check for autoplay blocking warnings
+
+**Solutions**:
+- Ensure audio loads before countdown starts
+- Check browser autoplay policies
+- Verify audio context is properly initialized
+
+### Chart Issues
+
+#### "Notes are not coming, they literally don't exist"
+**Symptoms**: Game runs but no notes appear on screen
+**Debugging Steps**:
+1. Check `this.notes.length` in console
+2. Verify chart has valid note array
+3. Check note timing values are reasonable
+
+**Solutions**:
+- Ensure chart has `notes` array with valid data
+- Check note structure: `{time: number, lane: 1-4}`
+- Verify notes are sorted by time correctly
+
+#### "Notes are coming delayed"
+**Symptoms**: Notes appear but timing is off
+**Debugging Steps**:
+1. Check `this.offset` value
+2. Verify `this.audioStartTime` calculation
+3. Monitor `Game.time()` vs actual audio time
+
+**Solutions**:
+- Adjust chart offset in editor
+- Ensure audio starts immediately after countdown
+- Check for audio buffering delays
+
+### UI Issues
+
+#### "UI is broken, game screen overlaying menus"
+**Symptoms**: Game canvas covers other UI elements
+**Debugging Steps**:
+1. Check `#screen-game` CSS display property
+2. Verify screen switching logic
+3. Check z-index values
+
+**Solutions**:
+- Ensure `#screen-game` only displays when active
+- Check modal z-index (should be 1000+)
+- Verify screen state management
+
+#### "Admin Panel Button not working"
+**Symptoms**: Admin panel button has no effect
+**Debugging Steps**:
+1. Check HTML onclick attributes
+2. Verify JavaScript functions are globally accessible
+3. Check console for JavaScript errors
+
+**Solutions**:
+- Ensure admin functions are attached to `window` object
+- Check HTML structure for admin modal
+- Verify event handlers are properly bound
+
+### Server Issues
+
+#### "Failed to upload MP3: Upload failed: 405"
+**Symptoms**: File uploads return 405 Method Not Allowed
+**Debugging Steps**:
+1. Check server endpoint configuration
+2. Verify HTTP method (should be POST)
+3. Check server logs for routing errors
+
+**Solutions**:
+- Ensure server.js has correct route definitions
+- Check CORS configuration
+- Verify file upload middleware setup
+
+#### "Charts not saved after server restart"
+**Symptoms**: Data lost when server restarts
+**Debugging Steps**:
+1. Check file paths in server.js
+2. Verify write permissions to data directory
+3. Check for file creation errors
+
+**Solutions**:
+- Use `process.cwd()` for reliable path resolution
+- Ensure directories exist before writing files
+- Implement automatic backup system
+
+## Debug Tools
+
+### Console Logging
+- **Audio Loading**: Extensive logging in `Game.start()`
+- **Chart Loading**: Note count and timing information
+- **Server Operations**: File upload and chart persistence logs
+
+### Debug Functions
+- **`Game.debugAudio()`**: Shows current audio status
+- **`Editor.debugAudio()`**: Editor audio debugging
+- **`/api/debug`**: Server-side debugging endpoint
+
+### Browser Tools
+- **Network Tab**: Monitor file requests and API calls
+- **Console**: JavaScript errors and debug messages
+- **Elements**: Inspect HTML structure and CSS
+
+## Performance Issues
+
+### Frame Rate Drops
+**Causes**: Too many notes, large audio files, complex animations
+**Solutions**: Optimize note rendering, reduce audio quality, simplify effects
+
+### Memory Leaks
+**Causes**: Unclosed audio contexts, uncleaned event listeners
+**Solutions**: Proper cleanup in `Game.stop()`, remove event listeners
+
+### Loading Delays
+**Causes**: Large files, slow network, complex chart data
+**Solutions**: Optimize file sizes, implement loading indicators, cache frequently used data
+description:
+globs:
+alwaysApply: false
+---

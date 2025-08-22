@@ -11,7 +11,7 @@
       notes:Array.from({length:64},(_,i)=>({time:0.6+i*0.5,lane:(i%4)+1})) },
     { id:'random-blitz', title:'Random Blitz', artist:'WaveX', difficulty:'Normal', mp3:'', offset:0,
       notes:(()=>{ let t=0.6; const arr=[]; for(let i=0;i<180;i++){ t+=0.28+Math.random()*0.12; arr.push({ time:Number(t.toFixed(2)), lane: 1 + (Math.random()*4|0) }); } return arr; })() },
-    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'./Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'./Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0', offset:0, notes:[
+    { id:'teto-medicine', title:'Teto Medicine', artist:'IGAKU イガク', difficulty:'Hard', mp3:'./Main_Levels/Teto Medicine/Teto Medicine1.mp3', artwork:'./Main_Levels/Teto Medicine/Medicine_album_cover.jpg', youtube:'https://www.youtube.com/embed/WPh2bWFxUz0?mute=1', offset:0, notes:[
       {time:1.0,lane:1},{time:1.5,lane:2},{time:2.0,lane:3},{time:2.5,lane:4},
       {time:3.0,lane:1},{time:3.5,lane:2},{time:4.0,lane:3},{time:4.5,lane:4},
       {time:5.0,lane:1},{time:5.5,lane:2},{time:6.0,lane:3},{time:6.5,lane:4},
@@ -34,6 +34,16 @@
       reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+  }
+
+  // Helper function to convert blob to data URL
+  async function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
   }
   
@@ -135,7 +145,50 @@
     async ensure(){ if(!this.ctx){ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); this.gain=this.ctx.createGain(); this.gain.connect(this.ctx.destination);} },
     setVolume(v){ if(this.gain) this.gain.gain.value=clamp(v,0,1); this.el.volume=clamp(v,0,1); },
     async useMp3(file){ await this.ensure(); this.mode='mp3'; this.el.src=URL.createObjectURL(file); if(!this.mediaSource){ this.mediaSource=this.ctx.createMediaElementSource(this.el); this.mediaSource.connect(this.gain);} },
-    async useDataUrl(dataUrl){ await this.ensure(); this.mode='mp3'; this.el.src=dataUrl; if(!this.mediaSource){ this.mediaSource=this.ctx.createMediaElementSource(this.el); this.mediaSource.connect(this.gain);} },
+    async useDataUrl(dataUrl){ 
+      await this.ensure(); 
+      this.mode='mp3'; 
+      console.log('Setting audio element src to data URL...');
+      this.el.src=dataUrl; 
+      console.log('Loading audio element...');
+      this.el.load(); // Explicitly load the audio
+      
+      // Wait for audio to be ready with timeout
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.warn('Audio loading timeout, but continuing...');
+          resolve(); // Continue anyway
+        }, 5000);
+        
+        this.el.addEventListener('canplaythrough', () => {
+          clearTimeout(timeout);
+          console.log('Audio can play through');
+          resolve();
+        }, { once: true });
+        
+        this.el.addEventListener('error', (e) => {
+          clearTimeout(timeout);
+          console.error('Audio loading error:', e);
+          reject(e);
+        }, { once: true });
+        
+        this.el.addEventListener('loadeddata', () => {
+          console.log('Audio loaded data');
+        });
+        
+        this.el.addEventListener('loadedmetadata', () => {
+          console.log('Audio loaded metadata');
+        });
+      });
+      
+      if(!this.mediaSource){ 
+        console.log('Creating media source...');
+        this.mediaSource=this.ctx.createMediaElementSource(this.el); 
+        this.mediaSource.connect(this.gain);
+        console.log('Media source connected');
+      }
+      console.log('Audio element set up with data URL, mode:', this.mode, 'readyState:', this.el.readyState);
+    },
     async useYouTube(url){ 
       await this.ensure(); 
       this.mode='youtube'; 
@@ -167,6 +220,9 @@
     async play() {
         await this.ensure();
         if (this.ctx.state === 'suspended') await this.ctx.resume();
+        
+        console.log('Audio.play() called, mode:', this.mode, 'readyState:', this.el.readyState);
+        
         if (this.mode === 'youtube') {
           // For YouTube, we'll use the MP3 audio but show the video
           if(this.yt) {
@@ -182,11 +238,42 @@
                 if (this.ctx.state === 'suspended') {
                     await this.ctx.resume();
                 }
-                await this.el.play();
+                
+                // Check if audio is ready
+                if (this.el.readyState >= 2) { // HAVE_CURRENT_DATA
+                    console.log('Audio ready, starting playback...');
+                    await this.el.play();
+                    console.log('Audio playback started successfully');
+                } else {
+                    console.warn('Audio not ready, readyState:', this.el.readyState);
+                    // Try to play anyway, browser might handle it
+                    try {
+                        await this.el.play();
+                        console.log('Audio playback started despite not being ready');
+                    } catch (playError) {
+                        console.warn('Direct play failed, waiting for ready state...');
+                        // Wait for audio to be ready with shorter timeout
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                console.warn('Audio ready timeout, trying to play anyway...');
+                                resolve();
+                            }, 3000);
+                            this.el.addEventListener('canplaythrough', () => {
+                                clearTimeout(timeout);
+                                resolve();
+                            }, { once: true });
+                            this.el.addEventListener('error', (e) => {
+                                clearTimeout(timeout);
+                                console.warn('Audio error during wait:', e);
+                                resolve(); // Continue anyway
+                            }, { once: true });
+                        });
+                        await this.el.play();
+                    }
+                }
             } catch (e) {
-                console.warn('Audio playback blocked:', e);
-                // Optionally, you can still alert the user if playback fails after resume attempt
-                // alert('Audio playback blocked. Click anywhere on the page, then try again.');
+                console.warn('Audio playback failed:', e);
+                throw e;
             }
         }
     },
@@ -238,6 +325,8 @@
     resize(){ const area=$('#gameArea'); if(!area) return; const r=area.getBoundingClientRect(); gC.width=r.width; gC.height=r.height; this.judgeY=gC.height-80; this.lanes=[0,1,2,3].map(i=>({x:i*(r.width/4),w:(r.width/4)})); },
          async start(chart,mods){ 
        console.log('Starting game with chart:', chart);
+       console.log('Current location:', window.location.href);
+       console.log('Current pathname:', window.location.pathname);
        this.chart=JSON.parse(JSON.stringify(chart)); 
        this.notes=this.chart.notes.slice().sort((a,b)=>a.time-b.time); 
        console.log('Initial notes count:', this.notes.length);
@@ -259,66 +348,98 @@
             await Audio.useDataUrl(chart.dataUrl); 
             console.log('Loaded audio from dataUrl');
           } else if(chart.mp3){ 
+            console.log('Loading MP3 from chart.mp3:', chart.mp3);
+            
             if(chart.mp3.startsWith('data:')) {
+              // Already a data URL
               await Audio.useDataUrl(chart.mp3);
               console.log('Loaded audio from data URL');
             } else if(chart.mp3.startsWith('http') || chart.mp3.startsWith('/')) {
               // Handle both full URLs and server paths
               const mp3Url = chart.mp3.startsWith('/') ? `${SERVER_URL}${chart.mp3}` : chart.mp3;
-              console.log('Loading MP3 from:', mp3Url);
+              console.log('Loading MP3 from URL:', mp3Url);
               
-              // Try to fetch remote MP3 and convert to data URL
-              const response = await fetch(mp3Url);
-              if(response.ok) {
-                const blob = await response.blob();
-                const dataUrl = await fileToDataURL(blob);
-                await Audio.useDataUrl(dataUrl);
-                console.log('MP3 loaded successfully from server');
-              } else {
-                throw new Error(`Failed to fetch remote MP3: ${response.status} ${response.statusText}`);
+              try {
+                const response = await fetch(mp3Url);
+                if(response.ok) {
+                  const blob = await response.blob();
+                  console.log(`MP3 blob created: ${blob.size} bytes, type: ${blob.type}`);
+                  const dataUrl = await blobToDataURL(blob);
+                  await Audio.useDataUrl(dataUrl);
+                  console.log('MP3 loaded successfully from URL');
+                } else {
+                  throw new Error(`Failed to fetch MP3: ${response.status} ${response.statusText}`);
+                }
+              } catch (urlError) {
+                console.warn('URL loading failed:', urlError);
+                throw urlError;
               }
-                         } else {
-               // Local file path - try to load from local files
-               try {
-                 console.log('Attempting to load local MP3 from:', chart.mp3);
-                 
-                 // Try multiple path variations
-                 const paths = [
-                   chart.mp3,
-                   chart.mp3.startsWith('./') ? chart.mp3.substring(2) : chart.mp3,
-                   chart.mp3.startsWith('./') ? chart.mp3 : './' + chart.mp3,
-                   chart.mp3.replace(/^\.\//, ''),
-                   chart.mp3.replace(/^\.\//, '') + '.mp3'
-                 ];
-                 
-                 let loaded = false;
-                 for (const path of paths) {
-                   try {
-                     console.log('Trying path:', path);
-                     const response = await fetch(path);
-                     if(response.ok) {
-                       const blob = await response.blob();
-                       const dataUrl = await fileToDataURL(blob);
-                       await Audio.useDataUrl(dataUrl);
-                       console.log('Loaded audio from path successfully:', path);
-                       loaded = true;
-                       break;
-                     } else {
-                       console.warn(`Path ${path} failed:`, response.status, response.statusText);
-                     }
-                   } catch(pathError) {
-                     console.warn(`Path ${path} error:`, pathError);
-                   }
-                 }
-                 
-                 if (!loaded) {
-                   throw new Error('All path variations failed to load MP3');
-                 }
-               } catch(localError) {
-                 console.warn('Failed to load local MP3:', localError);
-                 throw localError;
-               }
-             }
+            } else {
+              // Local file path - simplified approach
+              console.log('Attempting to load local MP3...');
+              
+              try {
+                // Try the exact path first
+                let response = await fetch(chart.mp3);
+                
+                if (!response.ok) {
+                  // Try alternative paths
+                  const altPaths = [
+                    chart.mp3.replace(/^\.\//, ''),
+                    'Main_Levels/Teto Medicine/Teto Medicine1.mp3',
+                    '/Main_Levels/Teto Medicine/Teto Medicine1.mp3'
+                  ];
+                  
+                  for (const altPath of altPaths) {
+                    try {
+                      response = await fetch(altPath);
+                      if (response.ok) {
+                        console.log(`Alternative path succeeded: ${altPath}`);
+                        break;
+                      }
+                    } catch (e) {
+                      console.warn(`Alternative path failed: ${altPath}`, e);
+                    }
+                  }
+                }
+                
+                if (response.ok) {
+                  const blob = await response.blob();
+                  console.log(`MP3 blob created: ${blob.size} bytes, type: ${blob.type}`);
+                  
+                  if (blob.size === 0) {
+                    throw new Error('MP3 file is empty');
+                  }
+                  
+                  const dataUrl = await blobToDataURL(blob);
+                  await Audio.useDataUrl(dataUrl);
+                  console.log('Local MP3 loaded successfully');
+                } else {
+                  throw new Error(`Failed to load local MP3: ${response.status}`);
+                }
+              } catch (localError) {
+                console.warn('Local MP3 loading failed:', localError);
+                
+                // Try server fallback
+                try {
+                  console.log('Trying server fallback...');
+                  const serverPath = `${SERVER_URL}/Main_Levels/Teto Medicine/Teto Medicine1.mp3`;
+                  const serverResponse = await fetch(serverPath);
+                  
+                  if (serverResponse.ok) {
+                    const blob = await serverResponse.blob();
+                    const dataUrl = await blobToDataURL(blob);
+                    await Audio.useDataUrl(dataUrl);
+                    console.log('MP3 loaded from server successfully');
+                  } else {
+                    throw new Error(`Server fallback failed: ${serverResponse.status}`);
+                  }
+                } catch (serverError) {
+                  console.warn('Server fallback also failed:', serverError);
+                  throw new Error('All MP3 loading methods failed');
+                }
+              }
+            }
           } else { 
             console.log('No audio found in chart');
             Audio.mode='none'; 
@@ -356,17 +477,42 @@
                console.warn('Failed to load YouTube video:', ytError);
              }
            }
+           
+           // Ensure we have notes to play
+           if(this.notes.length === 0) {
+             console.warn('No notes found in chart, cannot start game');
+             alert('This chart has no notes to play!');
+             return;
+           }
         } catch(audioError) {
           console.warn('Audio loading failed:', audioError);
           Audio.mode='none';
+          // Continue without audio - game can still run
+          console.log('Continuing game without audio');
+          
+          // Set a fallback audio element to prevent crashes
+          if (!Audio.el) {
+            Audio.el = new Audio();
+            Audio.el.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT';
+            console.log('Fallback audio element created');
+          }
         }
        
+       console.log('About to prime playback...');
        await this.primePlayback(); 
+       console.log('Playback primed, starting countdown...');
        await this.countdown(); 
+       console.log('Countdown finished, starting game...');
        this.startMs=performance.now(); 
        this.lastMs=this.startMs; 
        this.audioStartTime=Audio.time(); 
-       await Audio.play(); 
+       console.log('Starting audio playback...');
+       try {
+         await Audio.play(); 
+         console.log('Audio started, game running');
+       } catch (audioError) {
+         console.warn('Audio playback failed, continuing without audio:', audioError);
+       }
        this.running=true; 
        requestAnimationFrame(t=>this.frame(t)); 
      },
@@ -375,10 +521,24 @@
       try{
         if(Audio.mode==='mp3'){
           console.log('Priming audio playback...');
-          await Audio.play(); 
-          Audio.pause(); 
-          Audio.seek(0);
-          console.log('Audio primed successfully');
+          // Wait for audio to be ready
+          if(Audio.el.readyState < 2) { // HAVE_CURRENT_DATA
+            console.log('Waiting for audio to be ready...');
+            await new Promise((resolve) => {
+              Audio.el.addEventListener('canplaythrough', resolve, { once: true });
+              Audio.el.addEventListener('error', resolve, { once: true });
+              // Timeout after 5 seconds
+              setTimeout(resolve, 5000);
+            });
+          }
+          
+          if(Audio.el.readyState >= 2) {
+            console.log('Audio ready, priming playback...');
+            Audio.el.currentTime = 0;
+            console.log('Audio primed successfully');
+          } else {
+            console.warn('Audio not ready after waiting');
+          }
         } else {
           console.log('Audio mode is not mp3:', Audio.mode);
         }
@@ -438,6 +598,12 @@
       Audio.yt = null;
       console.log('YouTube video cleaned up');
     }
+    
+    // Clean up audio status indicator
+    const audioStatus = document.getElementById('audioStatus');
+    if(audioStatus) {
+      document.body.removeChild(audioStatus);
+    }
   },
     frame(ts){
       if(!this.running) return;
@@ -494,7 +660,28 @@
         }
       }
     },
-    updateHud(){ const tj=this.judge.perfect+this.judge.great+this.judge.good+this.judge.miss; const acc=tj?((this.judge.perfect*ACC.perfect+this.judge.great*ACC.great+this.judge.good*ACC.good)/tj):1; $('#hudScore').textContent=fmtScore(this.score); $('#hudAcc').textContent=fmtPct(acc); $('#hudCombo').textContent=this.combo+'x'; $('#healthFill').style.transform=`scaleY(${this.health||1})`; },
+    updateHud(){ 
+      const tj=this.judge.perfect+this.judge.great+this.judge.good+this.judge.miss; 
+      const acc=tj?((this.judge.perfect*ACC.perfect+this.judge.great*ACC.great+this.judge.good*ACC.good)/tj):1; 
+      $('#hudScore').textContent=fmtScore(this.score); 
+      $('#hudAcc').textContent=fmtPct(acc); 
+      $('#hudCombo').textContent=this.combo+'x'; 
+      if($('#healthFill')) $('#healthFill').style.transform=`scaleY(${this.health||1})`;
+      
+      // Show audio status indicator
+      const audioStatus = document.getElementById('audioStatus');
+      if (!audioStatus) {
+        const statusEl = document.createElement('div');
+        statusEl.id = 'audioStatus';
+        statusEl.style.cssText = 'position:fixed;top:50px;right:10px;background:rgba(0,0,0,0.8);color:white;padding:5px;border-radius:3px;font-size:12px;z-index:1000;';
+        document.body.appendChild(statusEl);
+      }
+      
+      const statusText = Audio.mode === 'none' ? '🔇 No Audio' : 
+                        Audio.mode === 'mp3' ? '🎵 MP3' : 
+                        Audio.mode === 'youtube' ? '📺 YouTube' : '❓ Unknown';
+      document.getElementById('audioStatus').textContent = statusText;
+    },
     
     // Debug function to check audio status during gameplay
     debugAudio() {
@@ -610,14 +797,14 @@
         })){ 
           const card=document.createElement('div'); 
           card.className='song-card';
-          card.innerHTML=`
-            <img src="${c.artwork || 'https://via.placeholder.com/100x100?text=No+Artwork'}" alt="Artwork" class="song-artwork" />
-            <div class="title">${c.title}</div>
-            <div class="meta">${c.artist} • <span class="tag">${c.difficulty||'Normal'}</span></div>
-            <div class="actions"><button class="btn primary">Play</button><button class="btn">Details</button></div>`;
-          card.querySelector('.btn.primary').onclick=()=>Game.start(c);
-          card.querySelectorAll('.btn')[1].onclick=()=>alert(`${c.title}\n${c.artist}\n${c.difficulty}`);
-          list.appendChild(card);
+        card.innerHTML=`
+          <img src="${c.artwork || 'https://via.placeholder.com/100x100?text=No+Artwork'}" alt="Artwork" class="song-artwork" />
+          <div class="title">${c.title}</div>
+          <div class="meta">${c.artist} • <span class="tag">${c.difficulty||'Normal'}</span></div>
+          <div class="actions"><button class="btn primary">Play</button><button class="btn">Details</button></div>`;
+        card.querySelector('.btn.primary').onclick=()=>Game.start(c);
+        card.querySelectorAll('.btn')[1].onclick=()=>alert(`${c.title}\n${c.artist}\n${c.difficulty}`);
+        list.appendChild(card);
         }
       } catch (e) {
         console.error('Failed to load songs:', e);
@@ -633,16 +820,16 @@
         el.innerHTML='';
         
         for(const c of charts){
-          const avg=c.ratings&&c.ratings.length?(c.ratings.reduce((a,b)=>a+b,0)/c.ratings.length).toFixed(1):'—';
-          const hasAudio = !!(c.mp3 || c.dataUrl);
+        const avg=c.ratings&&c.ratings.length?(c.ratings.reduce((a,b)=>a+b,0)/c.ratings.length).toFixed(1):'—';
+        const hasAudio = !!(c.mp3 || c.dataUrl);
           const card=document.createElement('div'); 
           card.className='song-card';
-          card.innerHTML=`
-            <div class="title">${c.title}</div>
-            <div class="meta">${c.artist} • ${c.difficulty} • by ${c.author} • ${hasAudio ? 'Audio: MP3' : 'Audio: —'} • ★ ${avg}</div>
-            <div class="actions"><button class="btn primary">Play</button><button class="btn">Download</button><button class="btn">Rate ★</button></div>`;
-          card.querySelector('.btn.primary').onclick=()=>{ Game.start(c); };
-          card.querySelectorAll('.btn')[1].onclick=()=>{ const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(c.title)}.json`; a.click(); URL.revokeObjectURL(url); };
+        card.innerHTML=`
+          <div class="title">${c.title}</div>
+          <div class="meta">${c.artist} • ${c.difficulty} • by ${c.author} • ${hasAudio ? 'Audio: MP3' : 'Audio: —'} • ★ ${avg}</div>
+          <div class="actions"><button class="btn primary">Play</button><button class="btn">Download</button><button class="btn">Rate ★</button></div>`;
+        card.querySelector('.btn.primary').onclick=()=>{ Game.start(c); };
+        card.querySelectorAll('.btn')[1].onclick=()=>{ const blob=new Blob([JSON.stringify(c,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(c.title)}.json`; a.click(); URL.revokeObjectURL(url); };
           card.querySelectorAll('.btn')[2].onclick=()=>{ 
             const v=Number(prompt('Rate 1-5')); 
             if(!v||v<1||v>5) return; 
@@ -653,7 +840,7 @@
               body: JSON.stringify({ rating: v, username: Profile.get().username || 'Guest' })
             }).then(() => UI.loadCommunity()).catch(e => console.error('Rating failed:', e));
           };
-          el.appendChild(card);
+        el.appendChild(card);
         }
       } catch (e) {
         console.error('Failed to load community charts:', e);
@@ -667,12 +854,12 @@
 
   // Editor
   const Editor={ playing:false, recording:false, chart:{id:'',title:'',artist:'',difficulty:'Normal',mp3:'',artwork:'',offset:0,notes:[]}, mp3:null, artwork:null, timeline:$('#timelineCanvas'), ctx:null, zoom:3, cursor:0, lastActionStack:[],
-         init(){
-       this.ctx=this.timeline.getContext('2d'); this.resize(); addEventListener('resize',()=>this.resize());
-       $('#editorLoad').onclick=()=>this.load(); $('#editorPlay').onclick=()=>this.play(); $('#editorPause').onclick=()=>this.pause();
-       $('#editorSave').onclick=()=>this.save(); $('#editorPublish').onclick=()=>this.publish();
-       const saveMp3Btn=document.getElementById('editorSaveMp3'); if(saveMp3Btn) saveMp3Btn.onclick=()=>this.saveMp3Locally();
-               $('#editorExport').onclick=()=>this.exportJSON(); $('#editorClear').onclick=()=>this.clearNotes(); $('#editorUndo').onclick=()=>this.undo();
+    init(){
+      this.ctx=this.timeline.getContext('2d'); this.resize(); addEventListener('resize',()=>this.resize());
+      $('#editorLoad').onclick=()=>this.load(); $('#editorPlay').onclick=()=>this.play(); $('#editorPause').onclick=()=>this.pause();
+      $('#editorSave').onclick=()=>this.save(); $('#editorPublish').onclick=()=>this.publish();
+      const saveMp3Btn=document.getElementById('editorSaveMp3'); if(saveMp3Btn) saveMp3Btn.onclick=()=>this.saveMp3Locally();
+      $('#editorExport').onclick=()=>this.exportJSON(); $('#editorClear').onclick=()=>this.clearNotes(); $('#editorUndo').onclick=()=>this.undo();
         
         // Add debug button
         const debugBtn = document.createElement('button');
@@ -686,10 +873,10 @@
         if (undoBtn && undoBtn.parentNode) {
           undoBtn.parentNode.insertBefore(debugBtn, undoBtn.nextSibling);
         }
-       $('#timelineZoom').oninput=(e)=>this.zoom=Number(e.target.value); $('#editorOffset').oninput=(e)=>this.chart.offset=Number(e.target.value);
-       $('#mp3File').onchange=async(e)=>{ this.mp3=e.target.files[0]; if(this.mp3){ const dataUrl=await fileToDataURL(this.mp3); this.chart.mp3=dataUrl; } };
-       $('#artworkFile').onchange=async(e)=>{ this.artwork=e.target.files[0]; if(this.artwork){ const dataUrl=await fileToDataURL(this.artwork); this.chart.artwork=dataUrl; } };
-       $('#editorTitle').oninput=(e)=>this.chart.title=e.target.value; $('#editorArtist').oninput=(e)=>this.chart.artist=e.target.value; $('#editorDiff').oninput=(e)=>this.chart.difficulty=e.target.value;
+      $('#timelineZoom').oninput=(e)=>this.zoom=Number(e.target.value); $('#editorOffset').oninput=(e)=>this.chart.offset=Number(e.target.value);
+      $('#mp3File').onchange=async(e)=>{ this.mp3=e.target.files[0]; if(this.mp3){ const dataUrl=await fileToDataURL(this.mp3); this.chart.mp3=dataUrl; } };
+      $('#artworkFile').onchange=async(e)=>{ this.artwork=e.target.files[0]; if(this.artwork){ const dataUrl=await fileToDataURL(this.artwork); this.chart.artwork=dataUrl; } };
+      $('#editorTitle').oninput=(e)=>this.chart.title=e.target.value; $('#editorArtist').oninput=(e)=>this.chart.artist=e.target.value; $('#editorDiff').oninput=(e)=>this.chart.difficulty=e.target.value;
        
        // Add import JSON functionality
        this.setupImportJSON();
@@ -750,7 +937,7 @@
       requestAnimationFrame(()=>this.loop());
     },
     save(){ if(!this.chart.title||!this.chart.artist) return alert('Title/Artist required'); this.chart.id=this.chart.id||`${slug(this.chart.title)}-${slug(this.chart.artist)}-${slug(this.chart.difficulty||'normal')}`; Charts.save(this.chart); alert('Draft saved'); },
-        async publish(){
+    async publish(){
       const p=Profile.get(); if(!p.username||p.username==='Guest') return alert('Set username in Profile'); if(!this.chart.notes.length) return alert('Add notes first');
       this.chart.id=this.chart.id||`${slug(this.chart.title)}-${slug(this.chart.artist)}-${slug(this.chart.difficulty||'normal')}`;
       
@@ -837,7 +1024,7 @@
         this.setStatus('MP3 saved locally.');
       }catch(e){ console.warn('Failed to save MP3:', e); alert('Failed to save MP3: ' + e.message); }
     },
-         exportJSON(){ const blob=new Blob([JSON.stringify(this.chart,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(this.chart.title||'chart')}.json`; a.click(); URL.revokeObjectURL(url); },
+    exportJSON(){ const blob=new Blob([JSON.stringify(this.chart,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`${slug(this.chart.title||'chart')}.json`; a.click(); URL.revokeObjectURL(url); },
      
      // Debug function to check chart audio status
      debugAudio() {
@@ -1010,8 +1197,8 @@
      }
   };
 
-     // Wiring
-   function wire(){ UI.top(); $('#songSearch').oninput=()=>UI.loadSongs(); $('#difficultyFilter').onchange=()=>UI.loadSongs(); $('#refreshCommunity').onclick=()=>UI.loadCommunity(); $('#profileName').onchange=(e)=>{ const p=Profile.get(); p.username=e.target.value; Profile.set(p); UI.top(); }; $('#profileAvatar').onchange=async(e)=>{ const f=e.target.files[0]; if(!f) return; const url=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); const p=Profile.get(); p.avatar=url; Profile.set(p); UI.top(); }; ['optVolume','optHitVolume','optSpeed','optMirror','optFadeIn','optHealth','optTheme'].forEach(id=>{ const el=$('#'+id); const save=()=>{ const o=Options.get(); o.volume=Number($('#optVolume').value); o.hitVolume=Number($('#optHitVolume').value); o.speed=Number($('#optSpeed').value); o.mirror=$('#optMirror').checked; o.fadeIn=$('#optFadeIn').checked; o.health=$('#optHealth').checked; o.theme=$('#optTheme').value; Options.set(o); }; el.addEventListener(el.type==='checkbox'?'change':'input',save); }); Editor.init(); }
+  // Wiring
+  function wire(){ UI.top(); $('#songSearch').oninput=()=>UI.loadSongs(); $('#difficultyFilter').onchange=()=>UI.loadSongs(); $('#refreshCommunity').onclick=()=>UI.loadCommunity(); $('#profileName').onchange=(e)=>{ const p=Profile.get(); p.username=e.target.value; Profile.set(p); UI.top(); }; $('#profileAvatar').onchange=async(e)=>{ const f=e.target.files[0]; if(!f) return; const url=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); const p=Profile.get(); p.avatar=url; Profile.set(p); UI.top(); }; ['optVolume','optHitVolume','optSpeed','optMirror','optFadeIn','optHealth','optTheme'].forEach(id=>{ const el=$('#'+id); const save=()=>{ const o=Options.get(); o.volume=Number($('#optVolume').value); o.hitVolume=Number($('#optHitVolume').value); o.speed=Number($('#optSpeed').value); o.mirror=$('#optMirror').checked; o.fadeIn=$('#optFadeIn').checked; o.health=$('#optHealth').checked; o.theme=$('#optTheme').value; Options.set(o); }; el.addEventListener(el.type==='checkbox'?'change':'input',save); }); Editor.init(); }
 
    // Admin Panel Functions - Made globally accessible
    window.showAdminLogin = function() {
@@ -1297,7 +1484,7 @@
     }
   });
 
-function init(){ Options.set(Options.get()); wire(); }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+  function init(){ Options.set(Options.get()); wire(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 

@@ -1,0 +1,81 @@
+# WaveX Server Backend Guide
+
+## Server Architecture
+The [server.js](mdc:server.js) file implements a Node.js + Express backend:
+
+### Core Dependencies
+- **Express**: Web framework for API endpoints
+- **Multer**: File upload middleware for MP3s and artwork
+- **bcrypt**: Password hashing for admin authentication
+- **crypto**: Session token generation
+- **dotenv**: Environment variable management
+
+### Server Configuration
+```javascript
+const PORT = process.env.PORT || 1488;
+const PUBLIC_DIR = process.cwd();
+const SONGS_DIR = path.join(process.cwd(), 'songs');
+const DATA_DIR = path.join(process.cwd(), 'data');
+```
+
+## API Endpoints
+
+### File Upload
+- **POST `/api/upload`**: MP3 file uploads to `/songs/` directory
+- **POST `/api/upload-artwork`**: Artwork uploads with MP3 association
+- **File Validation**: Checks file existence after upload
+
+### Chart Management
+- **GET `/api/charts`**: Retrieve all published charts
+- **POST `/api/charts`**: Publish new chart with metadata
+- **POST `/api/charts/:id/rate`**: Rate existing charts (1-5 stars)
+- **Storage**: Charts saved to `data/charts.json` with automatic backups
+
+### Admin Panel
+- **POST `/api/admin/login`**: Secure admin authentication
+- **GET `/api/admin/songs`**: List all uploaded songs
+- **DELETE `/api/admin/songs/:filename`**: Remove songs (admin only)
+
+### Static File Serving
+- **Root `/`**: Serves `index.html`
+- **`/songs/*`**: Serves uploaded MP3 and artwork files
+- **CORS**: Enabled for all API endpoints
+
+## Security Features
+### Admin Authentication
+- **Password Hashing**: bcrypt with salt rounds
+- **Session Tokens**: Crypto-secure random tokens
+- **Environment Variables**: `ADMIN_PASSWORD` stored securely
+- **Token Expiration**: Automatic session cleanup
+
+### File Security
+- **Upload Limits**: File size and type validation
+- **Path Sanitization**: Prevents directory traversal attacks
+- **Access Control**: Admin-only deletion operations
+
+## Deployment (Render)
+### Environment Setup
+1. **Build Command**: `npm install`
+2. **Start Command**: `node server.js`
+3. **Environment Variables**: Set `ADMIN_PASSWORD` in Render dashboard
+
+### File Persistence
+- **Charts**: Stored in `data/charts.json` with automatic backups
+- **Audio Files**: Stored in `songs/` directory
+- **Data Directory**: Automatically created if missing
+
+### Performance Considerations
+- **Memory**: 512MB RAM recommended for audio processing
+- **CPU**: 0.1 CPU units sufficient for basic operations
+- **Storage**: Persistent file system for chart and audio data
+
+## Debugging Server Issues
+- **Port Conflicts**: Check if port 1488 is available
+- **File Permissions**: Ensure write access to `songs/` and `data/` directories
+- **CORS Errors**: Verify CORS middleware is properly configured
+- **Upload Failures**: Check file size limits and directory permissions
+- **Chart Persistence**: Verify `charts.json` is writable and backed up
+description:
+globs:
+alwaysApply: false
+---

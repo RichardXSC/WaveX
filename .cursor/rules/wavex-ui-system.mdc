@@ -1,0 +1,105 @@
+# WaveX UI System Guide
+
+## Screen Management
+The UI system in [script.js](mdc:script.js) manages multiple screens:
+
+### Screen Structure
+- **`#screen-main`**: Main menu with navigation buttons
+- **`#screen-play`**: Song selection and difficulty filtering
+- **`#screen-game`**: Active gameplay canvas and HUD
+- **`#screen-editor`**: Chart creation and editing interface
+- **`#screen-community`**: Community charts browser
+- **`#screen-profile`**: User profile and statistics
+- **`#screen-options`**: Game settings and preferences
+
+### Screen Navigation
+- **`Screens.go(screenId)`**: Switch between screens
+- **`Screens.active`**: Currently active screen
+- **Screen transitions**: Smooth animations between states
+
+## Modal System
+### Modal Components
+- **Pause Modal**: Resume, restart, and quit options
+- **Results Modal**: Score display, rank, XP rewards
+- **Admin Panel Modal**: Login and song management
+
+### Modal Styling
+```css
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+```
+
+## Game HUD Elements
+### Canvas Rendering
+- **Game Canvas**: Main gameplay area with notes and lanes
+- **Timeline Canvas**: Editor timeline visualization
+- **Responsive Sizing**: Automatic canvas resizing on window changes
+
+### HUD Components
+- **Score Display**: Current score and combo
+- **Health Bar**: Visual health indicator (if enabled)
+- **Accuracy**: Hit percentage and judgment breakdown
+- **Progress Bar**: Song progress indicator
+
+## Styling System
+### CSS Architecture
+The [style.css](mdc:style.css) file implements:
+
+### Color Scheme
+- **Primary**: Dark futuristic theme (#121427)
+- **Accents**: Neon blue (#00E5FF), purple (#8B5CF6), pink (#EC4899)
+- **Text**: White (#FFFFFF) with various opacity levels
+- **Borders**: Subtle white borders with transparency
+
+### Component Styling
+- **Buttons**: Neon glow effects with hover states
+- **Cards**: Glassmorphism with backdrop blur
+- **Inputs**: Dark theme with focus highlights
+- **Animations**: Smooth transitions and hover effects
+
+### Responsive Design
+- **Mobile First**: Base styles for mobile devices
+- **Breakpoints**: Responsive adjustments for larger screens
+- **Touch Friendly**: Appropriate sizing for mobile interaction
+
+## UI Components
+
+### Song Cards
+- **Artwork Display**: Song cover images with fallbacks
+- **Metadata**: Title, artist, difficulty, and rating
+- **Actions**: Play, download, and rate buttons
+
+### Navigation
+- **Main Menu**: Large, accessible navigation buttons
+- **Breadcrumbs**: Clear navigation hierarchy
+- **Search/Filter**: Song search and difficulty filtering
+
+### Forms and Inputs
+- **Chart Editor**: Title, artist, difficulty inputs
+- **File Upload**: MP3 and artwork file selection
+- **Settings**: Volume sliders, toggle switches
+
+## Animation System
+### CSS Animations
+- **Keyframes**: Smooth transitions and effects
+- **Transforms**: Scale, rotate, and translate animations
+- **Transitions**: Hover states and screen changes
+
+### JavaScript Animations
+- **Particle Effects**: Background animations
+- **Note Animations**: Hit effects and lane highlights
+- **UI Transitions**: Smooth screen and modal changes
+
+## Accessibility Features
+- **Keyboard Navigation**: Full keyboard support
+- **Screen Reader**: Semantic HTML structure
+- **Color Contrast**: High contrast for readability
+- **Focus Management**: Clear focus indicators
+description:
+globs:
+alwaysApply: false
+---

@@ -1,0 +1,36 @@
+# WaveX Rhythm Game - Project Overview
+
+WaveX is a complete HTML5 rhythm game inspired by OSU!Mania with a modern arcade feel. The game features four-key vertical scrolling gameplay using D, F, J, K controls.
+
+## Core Architecture
+
+### Main Files
+- [index.html](mdc:index.html) - Main game structure with UI screens and modals
+- [style.css](mdc:style.css) - Dark futuristic UI styling with neon highlights
+- [script.js](mdc:script.js) - Complete game logic, audio management, and UI rendering
+- [server.js](mdc:server.js) - Node.js backend for file uploads and chart storage
+- [package.json](mdc:package.json) - Project dependencies and scripts
+
+### Key Features
+- **Play Mode**: Song selection, scoring system (Perfect/Great/Good/Miss), combo tracking
+- **Chart Editor**: MP3 loading, note placement during playback, timeline visualization
+- **Community System**: Chart publishing, rating, downloading, and sharing
+- **Admin Panel**: Password-protected song management and deletion
+- **Progression System**: XP/Level, achievements, leaderboards, modifiers
+
+### Tech Stack
+- **Frontend**: HTML5 Canvas, Web Audio API, localStorage
+- **Backend**: Node.js + Express, Multer for file uploads
+- **Storage**: Server-side chart persistence, client-side profile/options
+- **Deployment**: GitHub Pages (frontend) + Render (backend)
+
+## Development Guidelines
+- All JavaScript is encapsulated in an IIFE to prevent global scope pollution
+- Audio loading supports multiple formats: data URLs, HTTP URLs, local paths
+- Extensive console logging for debugging audio and chart loading issues
+- Responsive design with mobile-friendly controls
+- Security: Admin passwords stored as bcrypt hashes, session tokens for authentication
+description:
+globs:
+alwaysApply: false
+---

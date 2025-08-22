@@ -1,0 +1,58 @@
+# WaveX Audio System Guide
+
+## Audio Manager Class
+The `AudioManager` class in [script.js](mdc:script.js) handles all audio operations:
+
+### Audio Loading Methods
+- `useDataUrl(dataUrl)` - Loads audio from data URLs (base64 encoded)
+- `useYouTube(url)` - Loads YouTube videos as background (muted)
+- `useFile(file)` - Loads audio from File objects
+
+### Audio Playback
+- `play()` - Starts audio playback with error handling
+- `pause()` - Pauses audio
+- `stop()` - Stops and resets audio
+- `time()` - Returns current playback time in seconds
+- `duration()` - Returns total audio duration
+
+### Hit Sound Effects
+- `hitSound()` - Plays note hit sound effect
+- `missSound()` - Plays miss sound effect
+- Volume controlled by `Options.get().hitVolume`
+
+## Audio Loading in Game.start()
+The `Game.start()` method handles chart audio loading with multiple fallbacks:
+
+```javascript
+// Priority order:
+1. chart.dataUrl (data URL)
+2. chart.mp3 (if starts with 'data:' - data URL)
+3. chart.mp3 (if starts with 'http' or '/' - remote/server file)
+4. chart.mp3 (local file path with multiple variations)
+5. chart.youtube (YouTube video background)
+```
+
+### Local File Path Resolution
+When `chart.mp3` is a local path, the system tries multiple variations:
+- Original path
+- Without `./` prefix
+- With `./` prefix  
+- With `.mp3` extension
+- Clean path without special characters
+
+### Debugging Audio Issues
+- Check browser console for "Attempting to load local MP3 from:" messages
+- Look for "Loaded audio from path successfully:" confirmations
+- Verify file paths exist in the project structure
+- Ensure MP3 files are valid and not corrupted
+
+## Common Audio Issues
+1. **File not found**: Check file paths and ensure files exist
+2. **CORS errors**: Remote files must be served with proper CORS headers
+3. **Autoplay blocked**: Browser may block autoplay - user interaction required
+4. **Format unsupported**: Ensure MP3 files are properly encoded
+5. **Memory issues**: Large audio files may cause performance problems
+description:
+globs:
+alwaysApply: false
+---
