@@ -34,6 +34,9 @@ fs.mkdirSync(SONGS_DIR, { recursive: true });
 
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
+// Serve uploaded songs and artwork files
+app.use('/songs', express.static(SONGS_DIR));
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, SONGS_DIR),
   filename: (req, file, cb) => {
@@ -54,17 +57,39 @@ app.post('/api/upload', upload.single('mp3'), (req, res) => {
   console.log('File:', req.file);
   
   if (!req.file) return res.status(400).json({ error: 'No file' });
+  
+  // Ensure the file is properly saved
+  const filePath = path.join(SONGS_DIR, req.file.filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(500).json({ error: 'File upload failed' });
+  }
+  
   const url = `/songs/${req.file.filename}`;
-  console.log('Upload successful, URL:', url);
-  res.json({ url });
+  console.log('Upload successful, URL:', url, 'File size:', req.file.size);
+  res.json({ url, filename: req.file.filename, size: req.file.size });
 });
 
 // Upload artwork endpoint
 app.post('/api/upload-artwork', upload.single('artwork'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
+  
+  // Ensure the file is properly saved
+  const filePath = path.join(SONGS_DIR, req.file.filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(500).json({ error: 'File upload failed' });
+  }
+  
   const url = `/songs/${req.file.filename}`;
-  res.json({ url });
+  console.log('Artwork upload successful, URL:', url, 'File size:', req.file.size);
+  res.json({ url, filename: req.file.filename, size: req.file.size });
 });
+
+// Helper function for creating safe filenames
+const slug = (str) => {
+  return str.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+};
 
 // Chart storage endpoints
 const CHARTS_FILE = path.join(PUBLIC_DIR, 'charts.json');
@@ -72,6 +97,11 @@ const CHARTS_FILE = path.join(PUBLIC_DIR, 'charts.json');
 // Ensure charts file exists
 if (!fs.existsSync(CHARTS_FILE)) {
   fs.writeFileSync(CHARTS_FILE, JSON.stringify([]));
+}
+
+// Ensure songs directory exists
+if (!fs.existsSync(SONGS_DIR)) {
+  fs.mkdirSync(SONGS_DIR, { recursive: true });
 }
 
 // Get all charts
@@ -106,9 +136,21 @@ app.post('/api/charts', express.json(), (req, res) => {
       charts.push(chart);
     }
     
-    fs.writeFileSync(CHARTS_FILE, JSON.stringify(charts, null, 2));
-    console.log('Chart published:', chart.title);
-    res.json({ success: true, chart });
+    // Save to disk with error handling
+    try {
+      fs.writeFileSync(CHARTS_FILE, JSON.stringify(charts, null, 2));
+      console.log('Chart published and saved to disk:', chart.title);
+      
+      // Create backup
+      const backupFile = path.join(PUBLIC_DIR, `charts_backup_${Date.now()}.json`);
+      fs.writeFileSync(backupFile, JSON.stringify(charts, null, 2));
+      console.log('Backup created:', backupFile);
+      
+      res.json({ success: true, chart });
+    } catch (writeError) {
+      console.error('Failed to write chart to disk:', writeError);
+      res.status(500).json({ error: 'Failed to save chart to disk' });
+    }
   } catch (e) {
     console.error('Error publishing chart:', e);
     res.status(500).json({ error: 'Failed to publish chart' });
@@ -285,9 +327,14 @@ app.delete('/api/admin/songs/:filename', validateAdminSession, (req, res) => {
   }
 });
 
-// Helper function for slug generation
-function slug(str) {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
 
-app.listen(PORT, () => console.log(`WaveX running on http://localhost:${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`🎵 WaveX server running on port ${PORT}`);
+  console.log(`📁 Public directory: ${PUBLIC_DIR}`);
+  console.log(`🎶 Songs directory: ${SONGS_DIR}`);
+  console.log(`📊 Charts file: ${CHARTS_FILE}`);
+  console.log(`🔐 Admin panel: http://localhost:${PORT}/admin`);
+  console.log(`📡 API endpoints: http://localhost:${PORT}/api/*`);
+  console.log(`🌐 Static files: http://localhost:${PORT}/`);
+});

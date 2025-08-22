@@ -164,7 +164,7 @@
   const gC=$('#gameCanvas'), g= gC.getContext('2d');
   const Game={running:false, paused:false, notes:[], hitIdx:0, score:0, combo:0, maxCombo:0, judge:{perfect:0,great:0,good:0,miss:0}, offset:0, speed:600, startMs:0, lastMs:0, mods:{speed:1,mirror:false,fadeIn:false}, pressed:{1:false,2:false,3:false,4:false}, health:1,
     resize(){ const area=$('#gameArea'); if(!area) return; const r=area.getBoundingClientRect(); gC.width=r.width; gC.height=r.height; this.judgeY=gC.height-80; this.lanes=[0,1,2,3].map(i=>({x:i*(r.width/4),w:(r.width/4)})); },
-    async start(chart,mods){ this.chart=JSON.parse(JSON.stringify(chart)); this.notes=this.chart.notes.slice().sort((a,b)=>a.time-b.time); this.hitIdx=0; this.score=0; this.combo=0; this.maxCombo=0; this.judge={perfect:0,great:0,good:0,miss:0}; this.health=1; this.offset=chart.offset||0; const o=Options.get(); this.mods={speed:1,mirror:o.mirror,fadeIn:o.fadeIn,...(mods||{})}; this.speed=80*(o.speed||6)*(this.mods.speed||1); Screens.go('screen-game'); this.resize(); addEventListener('resize', this._rs=()=>this.resize()); this.bind(); if(chart.dataUrl){ await Audio.useDataUrl(chart.dataUrl); } else if(chart.mp3){ await Audio.useDataUrl(chart.mp3); } else { Audio.mode='none'; } await this.primePlayback(); await this.countdown(); this.startMs=performance.now(); this.lastMs=this.startMs; await Audio.play(); this.running=true; requestAnimationFrame(t=>this.frame(t)); },
+         async start(chart,mods){ this.chart=JSON.parse(JSON.stringify(chart)); this.notes=this.chart.notes.slice().sort((a,b)=>a.time-b.time); this.hitIdx=0; this.score=0; this.combo=0; this.maxCombo=0; this.judge={perfect:0,great:0,good:0,miss:0}; this.health=1; this.offset=chart.offset||0; const o=Options.get(); this.mods={speed:1,mirror:o.mirror,fadeIn:o.fadeIn,...(mods||{})}; this.speed=80*(o.speed||6)*(this.mods.speed||1); Screens.go('screen-game'); this.resize(); addEventListener('resize', this._rs=()=>this.resize()); this.bind(); if(chart.dataUrl){ await Audio.useDataUrl(chart.dataUrl); } else if(chart.mp3){ await Audio.useDataUrl(chart.mp3); } else { Audio.mode='none'; } await this.primePlayback(); await this.countdown(); this.startMs=performance.now(); this.lastMs=this.startMs; this.audioStartTime=Audio.time(); await Audio.play(); this.running=true; requestAnimationFrame(t=>this.frame(t)); },
 
     async primePlayback(){
       try{
@@ -222,7 +222,7 @@
       const last=(this.notes[this.notes.length-1]?.time||0)+2; if(t>=last){ this.finish(); return; }
       requestAnimationFrame(t=>this.frame(t));
     },
-    time(){ if(Audio.mode==='none') return (performance.now()-this.startMs)/1000; return Audio.time(); },
+         time(){ if(Audio.mode==='none') return (performance.now()-this.startMs)/1000; return Audio.time()-this.audioStartTime; },
     hit(lane){ const t=this.time()+this.offset; let best=-1, bd=1e9; for(let i=this.hitIdx;i<this.notes.length;i++){ const n=this.notes[i]; const ln=this.mods.mirror?5-n.lane:n.lane; if(ln!==lane) continue; const dt=Math.abs(n.time-t); if(dt<bd){bd=dt;best=i;} if(n.time>t+JUDGE_MS.miss/1000) break;} if(best<0) return; const dms=bd*1000; let j='miss'; if(dms<=JUDGE_MS.perfect) j='perfect'; else if(dms<=JUDGE_MS.great) j='great'; else if(dms<=JUDGE_MS.good) j='good'; else j='miss'; if(j==='miss') return; const n=this.notes[best]; n.hit=true;n.judge=j;n.hitTime=t; this.hitIdx=Math.max(this.hitIdx,best+1); this.onJudge(j); playHit(); },
     onJudge(j){ 
       this.judge[j]++; 
