@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Profile -->
+            <section id="screen-profile" class="screen active">
+                <div class="toolbar">
+                    <button class="btn" onclick="window.location.href='main-menu.html'">← Back</button>
+                </div>
+                <div class="profile">
+                    <div class="card">
+                        <label>Username <input id="profileName" type="text" placeholder="Enter username" /></label>
+                        <label>Avatar <input id="profileAvatar" type="file" accept="image/*" /></label>
+                    </div>
+                    <div class="stats card">
+                        <div><b>Level:</b> <span id="profileLevel">1</span></div>
+                        <div><b>XP:</b> <span id="profileXP">0</span></div>
+                        <div><b>Plays:</b> <span id="profilePlays">0</span></div>
+                        <div><b>Best Acc:</b> <span id="profileBestAcc">0%</span></div>
+                    </div>
+                    <div class="unlocks card">
+                        <h3>Unlocks</h3>
+                        <div id="unlockGrid"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize profile when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof UI !== 'undefined' && UI.loadProfile) {
+                UI.loadProfile();
+            }
+        });
+    </script>
+</body>
+</html>

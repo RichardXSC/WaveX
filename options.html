@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Options</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Options -->
+            <section id="screen-options" class="screen active">
+                <div class="toolbar">
+                    <button class="btn" onclick="window.location.href='main-menu.html'">← Back</button>
+                </div>
+                <div class="options">
+                    <div class="card">
+                        <h3>Audio</h3>
+                        <label>Master Volume <input id="optVolume" type="range" min="0" max="1" step="0.01" /></label>
+                        <label>Hit Sound Volume <input id="optHitVolume" type="range" min="0" max="1" step="0.01" /></label>
+                    </div>
+                    <div class="card">
+                        <h3>Gameplay</h3>
+                        <label>Scroll Speed <input id="optSpeed" type="range" min="1" max="12" step="1" /></label>
+                        <label><input id="optMirror" type="checkbox" /> Mirror Lanes</label>
+                        <label><input id="optFadeIn" type="checkbox" /> Fade-In Notes</label>
+                        <label><input id="optHealth" type="checkbox" checked /> Health Enabled</label>
+                    </div>
+                    <div class="card">
+                        <h3>Theme</h3>
+                        <select id="optTheme">
+                            <option value="neon">Neon (Default)</option>
+                            <option value="ice">Ice</option>
+                            <option value="sunset">Sunset</option>
+                            <option value="mono">Mono</option>
+                        </select>
+                    </div>
+                    <div class="card">
+                        <h3>Controls</h3>
+                        <div>Keys: D F J K</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize options when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof UI !== 'undefined' && UI.loadOptions) {
+                UI.loadOptions();
+            }
+        });
+    </script>
+</body>
+</html>

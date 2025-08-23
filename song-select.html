@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Song Select</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Song Select -->
+            <section id="screen-select" class="screen active">
+                <div class="toolbar">
+                    <button class="btn" onclick="window.location.href='main-menu.html'">← Back</button>
+                    <div class="filters">
+                        <label>Search <input id="songSearch" type="text" placeholder="Song, artist, chart..." /></label>
+                        <label>Difficulty
+                            <select id="difficultyFilter">
+                                <option value="">All</option>
+                                <option>Easy</option>
+                                <option>Normal</option>
+                                <option>Hard</option>
+                                <option>Insane</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Featured Level -->
+                <div class="featured-level card" style="margin: 20px 0; padding: 20px; text-align: center;">
+                    <h3 style="margin: 0 0 15px 0; color: var(--neon1);">Featured Level</h3>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                        <img src="Main_Levels/Teto Medicine/Medicine_album_cover.jpg" 
+                             alt="Teto Medicine" 
+                             style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover;" />
+                        <div>
+                            <h4 style="margin: 0 0 5px 0;">Teto Medicine</h4>
+                            <p style="margin: 0 0 10px 0; color: var(--muted);">IGAKU イガク • Hard</p>
+                            <button class="btn primary" onclick="window.location.href='teto-medicine.html'">
+                                Play Level
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="songList" class="list"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize song list when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof UI !== 'undefined' && UI.loadSongs) {
+                UI.loadSongs();
+            }
+        });
+    </script>
+</body>
+</html>

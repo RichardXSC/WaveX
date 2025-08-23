@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Game Screen -->
+            <section id="screen-game" class="screen active">
+                <div class="hud">
+                    <div class="left">
+                        <div id="hudScore">0000000</div>
+                        <div id="hudAcc">100.00%</div>
+                        <div id="hudCombo">0x</div>
+                    </div>
+                    <div class="center">
+                        <div id="countdown"></div>
+                    </div>
+                    <div class="right">
+                        <div id="hudMods"></div>
+                        <button id="pauseBtn" class="btn small">Pause</button>
+                    </div>
+                </div>
+                <div id="gameArea">
+                    <canvas id="gameCanvas"></canvas>
+                    <div id="laneKeys">
+                        <div class="laneKey" data-lane="1">D</div>
+                        <div class="laneKey" data-lane="2">F</div>
+                        <div class="laneKey" data-lane="3">J</div>
+                        <div class="laneKey" data-lane="4">K</div>
+                    </div>
+                    <div id="judgeLine"></div>
+                    <div id="healthBar"><div id="healthFill"></div></div>
+                </div>
+                <div id="pauseMenu" class="modal hidden">
+                    <div class="modal-content">
+                        <h2>Paused</h2>
+                        <button id="resumeBtn" class="btn primary">Resume</button>
+                        <button id="restartBtn" class="btn">Restart</button>
+                        <button id="quitBtn" class="btn">Quit</button>
+                    </div>
+                </div>
+                <div id="resultMenu" class="modal hidden">
+                    <div class="modal-content">
+                        <h2>Results</h2>
+                        <div id="resultStats"></div>
+                        <button id="resultRetry" class="btn">Retry</button>
+                        <button id="resultToSelect" class="btn">Song Select</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <audio id="mp3Audio" crossorigin="anonymous"></audio>
+
+    <script src="script.js"></script>
+    <script>
+        // Handle quit button to return to song select
+        document.addEventListener('DOMContentLoaded', function() {
+            const quitBtn = document.getElementById('resultToSelect');
+            if (quitBtn) {
+                quitBtn.addEventListener('click', function() {
+                    window.location.href = 'song-select.html';
+                });
+            }
+        });
+    </script>
+</body>
+</html>

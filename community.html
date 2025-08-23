@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Community Charts</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Community -->
+            <section id="screen-community" class="screen active">
+                <div class="toolbar">
+                    <button class="btn" onclick="window.location.href='main-menu.html'">← Back</button>
+                    <div class="group">
+                        <button id="refreshCommunity" class="btn">Refresh</button>
+                    </div>
+                </div>
+                <div id="communityList" class="list"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize community when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof UI !== 'undefined' && UI.loadCommunity) {
+                UI.loadCommunity();
+            }
+        });
+    </script>
+</body>
+</html>

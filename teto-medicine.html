@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Teto Medicine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Teto Medicine Level -->
+            <section id="screen-level" class="screen active">
+                <div class="toolbar">
+                    <button class="btn" onclick="window.location.href='song-select.html'">← Back to Songs</button>
+                    <button class="btn" onclick="window.location.href='main-menu.html'">Main Menu</button>
+                </div>
+                
+                <div class="level-info">
+                    <div class="song-card">
+                        <div class="song-artwork">
+                            <img src="Main_Levels/Teto Medicine/Medicine_album_cover.jpg" alt="Teto Medicine Album Cover" />
+                        </div>
+                        <div class="song-details">
+                            <h1 class="song-title">Teto Medicine</h1>
+                            <h2 class="song-artist">IGAKU イガク</h2>
+                            <div class="song-meta">
+                                <span class="difficulty hard">Hard</span>
+                                <span class="duration">~3:00</span>
+                                <span class="note-count">~80 notes</span>
+                            </div>
+                            <div class="song-description">
+                                <p>A challenging rhythm chart featuring the iconic Teto Medicine track. Test your skills with this Hard difficulty level!</p>
+                            </div>
+                            <div class="song-controls">
+                                <button class="btn primary large" onclick="startTetoMedicine()">Play Now</button>
+                                <button class="btn" onclick="previewTetoMedicine()">Preview</button>
+                                <button class="btn" onclick="showChartInfo()">Chart Info</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="level-stats card">
+                        <h3>Your Stats</h3>
+                        <div class="stat-row">
+                            <span>Best Score:</span>
+                            <span id="bestScore">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Best Accuracy:</span>
+                            <span id="bestAccuracy">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Times Played:</span>
+                            <span id="timesPlayed">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Max Combo:</span>
+                            <span id="maxCombo">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- YouTube Preview -->
+                <div class="preview-section card">
+                    <h3>Preview</h3>
+                    <div class="youtube-embed">
+                        <iframe id="youtubePreview" 
+                                width="100%" 
+                                height="315" 
+                                src="https://www.youtube.com/embed/WPh2bWFxUz0?mute=1" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Teto Medicine level specific functions
+        function startTetoMedicine() {
+            const chart = {
+                id: 'teto-medicine',
+                title: 'Teto Medicine',
+                artist: 'IGAKU イガク',
+                difficulty: 'Hard',
+                mp3: 'Main_Levels/Teto Medicine/Teto Medicine1.mp3',
+                artwork: 'Main_Levels/Teto Medicine/Medicine_album_cover.jpg',
+                youtube: 'https://www.youtube.com/embed/WPh2bWFxUz0?mute=1',
+                offset: 0,
+                notes: [] // Will be loaded from JSON file
+            };
+            
+            // Store chart data and redirect to game
+            if (typeof Store !== 'undefined') {
+                Store.set('currentChart', chart);
+            }
+            window.location.href = 'game.html';
+        }
+        
+        function previewTetoMedicine() {
+            const preview = document.getElementById('youtubePreview');
+            if (preview) {
+                preview.style.display = preview.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+        
+        function showChartInfo() {
+            // Load and display chart information from JSON
+            fetch('Main_Levels/Teto Medicine/teto-medicine1.json')
+                .then(response => response.json())
+                .then(data => {
+                    alert(`Chart Info:\nNotes: ${data.notes ? data.notes.length : 'Unknown'}\nDuration: ${data.duration || 'Unknown'}\nBPM: ${data.bpm || 'Unknown'}`);
+                })
+                .catch(error => {
+                    console.error('Error loading chart info:', error);
+                    alert('Chart info not available');
+                });
+        }
+        
+        // Load user stats for this level
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof Store !== 'undefined') {
+                const profile = Store.get('wavex_profile_v1', {});
+                const levelStats = profile.levelStats || {};
+                const tetoStats = levelStats['teto-medicine'] || {};
+                
+                document.getElementById('bestScore').textContent = tetoStats.bestScore || '-';
+                document.getElementById('bestAccuracy').textContent = tetoStats.bestAccuracy ? `${tetoStats.bestAccuracy}%` : '-';
+                document.getElementById('timesPlayed').textContent = tetoStats.timesPlayed || 0;
+                document.getElementById('maxCombo').textContent = tetoStats.maxCombo || '-';
+            }
+        });
+    </script>
+</body>
+</html>

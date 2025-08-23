@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WaveX - Chart Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <canvas id="bgCanvas"></canvas>
+    <div id="app">
+        <header id="topBar">
+            <div class="logo">WaveX</div>
+            <div class="spacer"></div>
+            <div id="userBadge">
+                <img id="userAvatar" alt="avatar" />
+                <div id="userInfo">
+                    <div id="userName">Guest</div>
+                    <div id="userLevel">Lv. 1</div>
+                </div>
+            </div>
+        </header>
+
+        <main id="screens">
+            <!-- Editor -->
+            <section id="screen-editor" class="screen active">
+                <div class="toolbar">
+                    <button class="btn" onclick="window.location.href='main-menu.html'">← Back</button>
+                    <div class="group">
+                        <input id="editorTitle" type="text" placeholder="Title" />
+                        <input id="editorArtist" type="text" placeholder="Artist" />
+                        <input id="editorDiff" type="text" placeholder="Difficulty (Easy/Hard...)" />
+                    </div>
+                    <div class="group">
+                        <label class="file">
+                            <input id="mp3File" type="file" accept="audio/*" />
+                            <span>Upload MP3</span>
+                        </label>
+                        <button id="editorLoad" class="btn">Load</button>
+                        <button id="editorSaveMp3" class="btn">Save MP3 As…</button>
+                    </div>
+                    <div class="group">
+                        <label class="file">
+                            <input id="artworkFile" type="file" accept="image/*" />
+                            <span>Upload Artwork</span>
+                        </label>
+                    </div>
+                    <div class="group">
+                        <button id="editorPlay" class="btn">Play</button>
+                        <button id="editorPause" class="btn">Pause</button>
+                        <label>Zoom <input id="timelineZoom" type="range" min="1" max="10" value="3" /></label>
+                        <label>Offset <input id="editorOffset" type="number" step="0.01" value="0" /></label>
+                    </div>
+                    <div class="group">
+                        <button id="editorExport" class="btn primary">Export JSON</button>
+                        <button id="editorClear" class="btn">Clear Notes</button>
+                        <button id="editorUndo" class="btn">Undo</button>
+                        <span id="editorStatus" style="color:#93a0c7;font-size:12px"></span>
+                    </div>
+                    <div class="group">
+                        <button id="editorSave" class="btn primary">Save Draft</button>
+                        <button id="editorPublish" class="btn">Publish</button>
+                    </div>
+                </div>
+                <div id="editorArea">
+                    <canvas id="timelineCanvas"></canvas>
+                    <div id="editorLanes">
+                        <div class="lane" data-lane="1"></div>
+                        <div class="lane" data-lane="2"></div>
+                        <div class="lane" data-lane="3"></div>
+                        <div class="lane" data-lane="4"></div>
+                        <div id="editorJudgeLine"></div>
+                    </div>
+                    <div id="editorHelp">Place notes with D/F/J/K. Delete last: Backspace. Move cursor: ← →. Snap: Shift for fine.</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize editor when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof UI !== 'undefined' && UI.loadEditor) {
+                UI.loadEditor();
+            }
+        });
+    </script>
+</body>
+</html>
