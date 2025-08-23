@@ -44,15 +44,14 @@
                 </div>
                 
                 <!-- Featured Level -->
-                <div class="featured-level card" style="margin: 20px 0; padding: 20px; text-align: center;">
-                    <h3 style="margin: 0 0 15px 0; color: var(--neon1);">Featured Level</h3>
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <div class="featured-level">
+                    <h3>Featured Level</h3>
+                    <div class="song-info">
                         <img src="Main_Levels/Teto Medicine/Medicine_album_cover.jpg" 
-                             alt="Teto Medicine" 
-                             style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover;" />
-                        <div>
-                            <h4 style="margin: 0 0 5px 0;">Teto Medicine</h4>
-                            <p style="margin: 0 0 10px 0; color: var(--muted);">IGAKU イガク • Hard</p>
+                             alt="Teto Medicine" />
+                        <div class="song-details">
+                            <h4>Teto Medicine</h4>
+                            <p>IGAKU イガク • Hard</p>
                             <button class="btn primary" onclick="window.location.href='teto-medicine.html'">
                                 Play Level
                             </button>
@@ -60,7 +59,12 @@
                     </div>
                 </div>
                 
-                <div id="songList" class="list"></div>
+                <div id="songList" class="list">
+                    <div class="loading-indicator">
+                        <div class="loading-text">Loading songs...</div>
+                        <div class="loading-subtext">Please wait while we prepare your rhythm game experience</div>
+                    </div>
+                </div>
             </section>
         </main>
     </div>

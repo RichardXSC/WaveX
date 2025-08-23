@@ -98,24 +98,46 @@
     <script src="script.js"></script>
     <script>
         // Teto Medicine level specific functions
-        function startTetoMedicine() {
-            const chart = {
-                id: 'teto-medicine',
-                title: 'Teto Medicine',
-                artist: 'IGAKU イガク',
-                difficulty: 'Hard',
-                mp3: 'Main_Levels/Teto Medicine/Teto Medicine1.mp3',
-                artwork: 'Main_Levels/Teto Medicine/Medicine_album_cover.jpg',
-                youtube: 'https://www.youtube.com/embed/WPh2bWFxUz0?mute=1',
-                offset: 0,
-                notes: [] // Will be loaded from JSON file
-            };
-            
-            // Store chart data and redirect to game
-            if (typeof Store !== 'undefined') {
-                Store.set('currentChart', chart);
+        async function startTetoMedicine() {
+            try {
+                // Load the actual chart data from JSON file
+                const response = await fetch('Main_Levels/Teto Medicine/teto-medicine1.json');
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load chart: ${response.status} ${response.statusText}`);
+                }
+                
+                const chartData = await response.json();
+                
+                // Create the complete chart object
+                const chart = {
+                    id: 'teto-medicine',
+                    title: 'Teto Medicine',
+                    artist: 'IGAKU イガク',
+                    difficulty: 'Hard',
+                    mp3: 'Main_Levels/Teto Medicine/Teto Medicine1.mp3',
+                    artwork: 'Main_Levels/Teto Medicine/Medicine_album_cover.jpg',
+                    youtube: 'https://www.youtube.com/embed/WPh2bWFxUz0?mute=1',
+                    offset: chartData.offset || 0,
+                    notes: chartData.notes || [],
+                    duration: chartData.duration,
+                    bpm: chartData.bpm
+                };
+                
+                console.log('Starting Teto Medicine with chart:', chart);
+                
+                // Store chart data for the game
+                if (typeof Store !== 'undefined') {
+                    Store.set('currentChart', chart);
+                }
+                
+                // Redirect to game page
+                window.location.href = 'game.html';
+                
+            } catch (error) {
+                console.error('Error starting Teto Medicine:', error);
+                alert(`Failed to load chart data: ${error.message}\n\nPlease make sure the local server is running.`);
             }
-            window.location.href = 'game.html';
         }
         
         function previewTetoMedicine() {
@@ -128,27 +150,41 @@
         function showChartInfo() {
             // Load and display chart information from JSON
             fetch('Main_Levels/Teto Medicine/teto-medicine1.json')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    alert(`Chart Info:\nNotes: ${data.notes ? data.notes.length : 'Unknown'}\nDuration: ${data.duration || 'Unknown'}\nBPM: ${data.bpm || 'Unknown'}`);
+                    const noteCount = data.notes ? data.notes.length : 'Unknown';
+                    const duration = data.duration || 'Unknown';
+                    const bpm = data.bpm || 'Unknown';
+                    const offset = data.offset || 0;
+                    
+                    alert(`Chart Info:\nNotes: ${noteCount}\nDuration: ${duration}\nBPM: ${bpm}\nOffset: ${offset}ms`);
                 })
                 .catch(error => {
                     console.error('Error loading chart info:', error);
-                    alert('Chart info not available');
+                    alert(`Chart info not available: ${error.message}`);
                 });
         }
         
         // Load user stats for this level
         document.addEventListener('DOMContentLoaded', function() {
-            if (typeof Store !== 'undefined') {
-                const profile = Store.get('wavex_profile_v1', {});
-                const levelStats = profile.levelStats || {};
-                const tetoStats = levelStats['teto-medicine'] || {};
-                
-                document.getElementById('bestScore').textContent = tetoStats.bestScore || '-';
-                document.getElementById('bestAccuracy').textContent = tetoStats.bestAccuracy ? `${tetoStats.bestAccuracy}%` : '-';
-                document.getElementById('timesPlayed').textContent = tetoStats.timesPlayed || 0;
-                document.getElementById('maxCombo').textContent = tetoStats.maxCombo || '-';
+            try {
+                if (typeof Store !== 'undefined') {
+                    const profile = Store.get('wavex_profile_v1', {});
+                    const levelStats = profile.levelStats || {};
+                    const tetoStats = levelStats['teto-medicine'] || {};
+                    
+                    document.getElementById('bestScore').textContent = tetoStats.bestScore || '-';
+                    document.getElementById('bestAccuracy').textContent = tetoStats.bestAccuracy ? `${tetoStats.bestAccuracy}%` : '-';
+                    document.getElementById('timesPlayed').textContent = tetoStats.timesPlayed || 0;
+                    document.getElementById('maxCombo').textContent = tetoStats.maxCombo || '-';
+                }
+            } catch (error) {
+                console.error('Error loading user stats:', error);
             }
         });
     </script>

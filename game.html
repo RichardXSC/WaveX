@@ -84,6 +84,34 @@
                     window.location.href = 'song-select.html';
                 });
             }
+            
+            // Check if we have chart data and start the game
+            if (typeof Store !== 'undefined') {
+                const currentChart = Store.get('currentChart');
+                if (currentChart && currentChart.notes && currentChart.notes.length > 0) {
+                    console.log('Starting game with chart:', currentChart);
+                    
+                    // Wait a bit for the page to fully load, then start the game
+                    setTimeout(() => {
+                        if (typeof Game !== 'undefined' && Game.start) {
+                            Game.start(currentChart);
+                        } else {
+                            console.error('Game system not available');
+                            alert('Game system not available. Please refresh the page.');
+                        }
+                    }, 500);
+                } else {
+                    console.log('No chart data available, redirecting to song select');
+                    setTimeout(() => {
+                        window.location.href = 'song-select.html';
+                    }, 1000);
+                }
+            } else {
+                console.error('Store system not available');
+                setTimeout(() => {
+                    window.location.href = 'song-select.html';
+                }, 1000);
+            }
         });
     </script>
 </body>
