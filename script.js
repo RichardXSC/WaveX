@@ -26,7 +26,17 @@
   ];
   const $=(q)=>document.querySelector(q); const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const fmtScore=(n)=>(n|0).toString().padStart(7,'0'); const fmtPct=(p)=>(p*100).toFixed(2)+'%'; const slug=(s)=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   const Store={get:(k,f)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):f;}catch(e){return f;}}, set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
-  async function blobToBase64(blob){ const buf = await blob.arrayBuffer(); let binary=''; const bytes=new Uint8Array(buf); const chunk=0x8000; for(let i=0;i<bytes.length;i+=chunk){ binary+=String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); } return btoa(binary); }
+  
+  // Helper function to convert blob to data URL - FIXED VERSION
+  async function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
   // Helper function for file to data URL conversion
   async function fileToDataURL(file) {
     return new Promise((resolve, reject) => {
@@ -34,16 +44,6 @@
       reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
-    });
-  }
-
-  // Helper function to convert blob to data URL
-  async function blobToDataURL(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
     });
   }
   
@@ -61,6 +61,85 @@
       return [];
     }
   }
+
+  // NEW: Robust audio loading function
+  async function loadAudioFromPath(audioPath) {
+    console.log('🔊 Loading audio from path:', audioPath);
+    
+    // If it's already a data URL, use it directly
+    if (audioPath.startsWith('data:')) {
+      console.log('✅ Audio is already a data URL');
+      return audioPath;
+    }
+    
+    // Try multiple loading strategies
+    const strategies = [
+      // Strategy 1: Direct fetch
+      async () => {
+        console.log('🔄 Strategy 1: Direct fetch');
+        const response = await fetch(audioPath);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        if (blob.size === 0) throw new Error('Empty blob');
+        return await blobToDataURL(blob);
+      },
+      
+      // Strategy 2: Server fallback
+      async () => {
+        console.log('🔄 Strategy 2: Server fallback');
+        const serverPath = `${SERVER_URL}/${audioPath}`;
+        const response = await fetch(serverPath);
+        if (!response.ok) throw new Error(`Server HTTP ${response.status}`);
+        const blob = await response.blob();
+        if (blob.size === 0) throw new Error('Empty server blob');
+        return await blobToDataURL(blob);
+      },
+      
+      // Strategy 3: Alternative local paths
+      async () => {
+        console.log('🔄 Strategy 3: Alternative local paths');
+        const altPaths = [
+          audioPath.replace(/^\.\//, ''),
+          `./${audioPath}`,
+          `/${audioPath}`,
+          audioPath.replace(/^Main_Levels\//, './Main_Levels/'),
+          audioPath.replace(/^Main_Levels\//, '/Main_Levels/')
+        ];
+        
+        for (const path of altPaths) {
+          try {
+            console.log(`  Trying path: ${path}`);
+            const response = await fetch(path);
+            if (response.ok) {
+              const blob = await response.blob();
+              if (blob.size > 0) {
+                console.log(`✅ Alternative path succeeded: ${path}`);
+                return await blobToDataURL(blob);
+              }
+            }
+          } catch (e) {
+            console.log(`  Path failed: ${path} - ${e.message}`);
+          }
+        }
+        throw new Error('All alternative paths failed');
+      }
+    ];
+    
+    // Try each strategy in order
+    for (let i = 0; i < strategies.length; i++) {
+      try {
+        const result = await strategies[i]();
+        console.log(`✅ Audio loaded successfully with strategy ${i + 1}`);
+        return result;
+      } catch (error) {
+        console.warn(`❌ Strategy ${i + 1} failed:`, error.message);
+        if (i === strategies.length - 1) {
+          throw new Error(`All audio loading strategies failed. Last error: ${error.message}`);
+        }
+      }
+    }
+  }
+
   const Options={get(){return Store.get(SKEY.options,DefaultOptions)}, set(v){Store.set(SKEY.options,v); document.body.setAttribute('data-theme', v.theme==='neon'?'':v.theme); Audio.setVolume(v.volume);}};
   const Profile={get(){return Store.get(SKEY.profile,DefaultProfile)}, set(v){Store.set(SKEY.profile,v)}};
   const Charts={
@@ -139,63 +218,96 @@
   // Background
   const bgC=$('#bgCanvas'), bgx=bgC.getContext('2d'); const bg={parts:[],phase:0,comboGlow:0, resize(){bgC.width=innerWidth; bgC.height=innerHeight;}, tick(){const w=bgC.width,h=bgC.height; bgx.clearRect(0,0,w,h); this.phase+=0.002; bgx.strokeStyle='rgba(168,85,247,0.12)'; const sp=40,off=Math.sin(this.phase)*20; for(let x=-sp;x<w+sp;x+=sp){ bgx.beginPath(); bgx.moveTo(x+off,0); bgx.lineTo(x-off,h); bgx.stroke(); } for(let y=0;y<h;y+=sp){ bgx.beginPath(); bgx.moveTo(0,y+off); bgx.lineTo(w,y-off); bgx.stroke(); } if(!this.parts.length){ this.parts=Array.from({length:120},()=>({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-0.5)*0.15,vy:(Math.random()-0.5)*0.15,r:Math.random()*2+0.5,h:190+Math.random()*160})); } for(const p of this.parts){ p.x+=p.vx;p.y+=p.vy; if(p.x<-10||p.x>w+10||p.y<-10||p.y>h+10){ p.x=Math.random()*w;p.y=Math.random()*h; } bgx.beginPath(); bgx.fillStyle=`hsla(${p.h},90%,60%,${0.15+this.comboGlow*0.3})`; bgx.arc(p.x,p.y,p.r,0,Math.PI*2); bgx.fill(); } requestAnimationFrame(()=>this.tick());}, setCombo(c){this.comboGlow=Math.min(1,c/100);} }; addEventListener('resize',()=>bg.resize()); bg.resize(); requestAnimationFrame(()=>bg.tick());
 
-  // Audio
+  // Audio - COMPLETELY REWRITTEN FOR RELIABILITY
   const Audio={
     ctx:null,gain:null,mode:'none',el:$('#mp3Audio'),mediaSource:null,yt:null,
-    async ensure(){ if(!this.ctx){ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); this.gain=this.ctx.createGain(); this.gain.connect(this.ctx.destination);} },
-    setVolume(v){ if(this.gain) this.gain.gain.value=clamp(v,0,1); this.el.volume=clamp(v,0,1); },
-    async useMp3(file){ await this.ensure(); this.mode='mp3'; this.el.src=URL.createObjectURL(file); if(!this.mediaSource){ this.mediaSource=this.ctx.createMediaElementSource(this.el); this.mediaSource.connect(this.gain);} },
+    
+    async ensure(){ 
+      if(!this.ctx){ 
+        this.ctx=new (window.AudioContext||window.webkitAudioContext)(); 
+        this.gain=this.ctx.createGain(); 
+        this.gain.connect(this.ctx.destination);
+      } 
+    },
+    
+    setVolume(v){ 
+      if(this.gain) this.gain.gain.value=clamp(v,0,1); 
+      this.el.volume=clamp(v,0,1); 
+    },
+    
+    async useMp3(file){ 
+      await this.ensure(); 
+      this.mode='mp3'; 
+      this.el.src=URL.createObjectURL(file); 
+      if(!this.mediaSource){ 
+        this.mediaSource=this.ctx.createMediaElementSource(this.el); 
+        this.mediaSource.connect(this.gain);
+      } 
+    },
+    
     async useDataUrl(dataUrl){ 
       await this.ensure(); 
       this.mode='mp3'; 
-      console.log('Setting audio element src to data URL...');
+      console.log('🎵 Setting audio element src to data URL...');
       this.el.src=dataUrl; 
-      console.log('Loading audio element...');
       this.el.load(); // Explicitly load the audio
       
-      // Wait for audio to be ready with timeout
+      // Wait for audio to be ready with proper timeout handling
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          console.warn('Audio loading timeout, but continuing...');
+          console.warn('⏰ Audio loading timeout, but continuing...');
           resolve(); // Continue anyway
-        }, 5000);
+        }, 3000); // Reduced timeout for better UX
         
-        this.el.addEventListener('canplaythrough', () => {
+        const onReady = () => {
           clearTimeout(timeout);
-          console.log('Audio can play through');
+          console.log('✅ Audio ready to play');
           resolve();
-        }, { once: true });
+        };
         
-        this.el.addEventListener('error', (e) => {
+        const onError = (e) => {
           clearTimeout(timeout);
-          console.error('Audio loading error:', e);
+          console.error('❌ Audio loading error:', e);
           reject(e);
-        }, { once: true });
+        };
         
-        this.el.addEventListener('loadeddata', () => {
-          console.log('Audio loaded data');
-        });
+        this.el.addEventListener('canplaythrough', onReady, { once: true });
+        this.el.addEventListener('error', onError, { once: true });
+        this.el.addEventListener('loadeddata', () => console.log('📊 Audio loaded data'));
+        this.el.addEventListener('loadedmetadata', () => console.log('📋 Audio loaded metadata'));
         
-        this.el.addEventListener('loadedmetadata', () => {
-          console.log('Audio loaded metadata');
-        });
+        // If already ready, resolve immediately
+        if (this.el.readyState >= 2) {
+          clearTimeout(timeout);
+          resolve();
+        }
       });
       
       if(!this.mediaSource){ 
-        console.log('Creating media source...');
+        console.log('🔗 Creating media source...');
         this.mediaSource=this.ctx.createMediaElementSource(this.el); 
         this.mediaSource.connect(this.gain);
-        console.log('Media source connected');
+        console.log('✅ Media source connected');
       }
-      console.log('Audio element set up with data URL, mode:', this.mode, 'readyState:', this.el.readyState);
+      
+      console.log('🎵 Audio element ready, mode:', this.mode, 'readyState:', this.el.readyState);
     },
     async useYouTube(url){ 
       await this.ensure(); 
       this.mode='youtube'; 
+      console.log('📺 Setting up YouTube background video:', url);
+      
       // Create YouTube iframe if it doesn't exist
       if(!this.yt) {
         const iframe = document.createElement('iframe');
-        iframe.src = url + '?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&loop=1&playlist=' + url.match(/embed\/([^?]+)/)?.[1];
+        const videoId = url.match(/embed\/([^?]+)/)?.[1];
+        
+        if (videoId) {
+          iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&loop=1&playlist=${videoId}&mute=1`;
+        } else {
+          iframe.src = url + '?autoplay=0&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&loop=1&mute=1';
+        }
+        
         iframe.style.position = 'fixed';
         iframe.style.top = '0';
         iframe.style.left = '0';
@@ -209,70 +321,77 @@
         
         // Wait for iframe to load before adding to DOM
         iframe.onload = () => {
-          console.log('YouTube iframe loaded successfully');
+          console.log('✅ YouTube iframe loaded successfully');
+        };
+        
+        iframe.onerror = (e) => {
+          console.warn('⚠️ YouTube iframe failed to load:', e);
         };
         
         document.body.appendChild(iframe);
         this.yt = iframe;
-        console.log('YouTube iframe created and added to DOM');
+        console.log('📺 YouTube iframe created and added to DOM');
       }
     },
     async play() {
         await this.ensure();
         if (this.ctx.state === 'suspended') await this.ctx.resume();
         
-        console.log('Audio.play() called, mode:', this.mode, 'readyState:', this.el.readyState);
+        console.log('▶️ Audio.play() called, mode:', this.mode, 'readyState:', this.el.readyState);
         
         if (this.mode === 'youtube') {
-          // For YouTube, we'll use the MP3 audio but show the video
+          // For YouTube, start the video
           if(this.yt) {
-            // Extract video ID and create autoplay URL
-            const videoId = this.yt.src.match(/embed\/([^?]+)/)?.[1];
-            if(videoId) {
-              this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&start=0&mute=1`;
+            try {
+              const videoId = this.yt.src.match(/embed\/([^?]+)/)?.[1];
+              if(videoId) {
+                this.yt.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&showinfo=0&start=0&mute=1`;
+                console.log('📺 YouTube video started');
+              }
+            } catch (e) {
+              console.warn('⚠️ YouTube video start failed:', e);
             }
           }
         } else if (this.mode === 'mp3') {
             try {
-                // Ensure the audio context is running before playing
+                // Ensure the audio context is running
                 if (this.ctx.state === 'suspended') {
                     await this.ctx.resume();
                 }
                 
                 // Check if audio is ready
                 if (this.el.readyState >= 2) { // HAVE_CURRENT_DATA
-                    console.log('Audio ready, starting playback...');
+                    console.log('✅ Audio ready, starting playback...');
                     await this.el.play();
-                    console.log('Audio playback started successfully');
+                    console.log('🎵 Audio playback started successfully');
                 } else {
-                    console.warn('Audio not ready, readyState:', this.el.readyState);
-                    // Try to play anyway, browser might handle it
-                    try {
-                        await this.el.play();
-                        console.log('Audio playback started despite not being ready');
-                    } catch (playError) {
-                        console.warn('Direct play failed, waiting for ready state...');
-                        // Wait for audio to be ready with shorter timeout
-                        await new Promise((resolve, reject) => {
-                            const timeout = setTimeout(() => {
-                                console.warn('Audio ready timeout, trying to play anyway...');
-                                resolve();
-                            }, 3000);
-                            this.el.addEventListener('canplaythrough', () => {
-                                clearTimeout(timeout);
-                                resolve();
-                            }, { once: true });
-                            this.el.addEventListener('error', (e) => {
-                                clearTimeout(timeout);
-                                console.warn('Audio error during wait:', e);
-                                resolve(); // Continue anyway
-                            }, { once: true });
-                        });
-                        await this.el.play();
-                    }
+                    console.warn('⏳ Audio not ready, readyState:', this.el.readyState);
+                    
+                    // Wait for audio to be ready with timeout
+                    await new Promise((resolve) => {
+                        const timeout = setTimeout(() => {
+                            console.warn('⏰ Audio ready timeout, trying to play anyway...');
+                            resolve();
+                        }, 2000); // Shorter timeout
+                        
+                        this.el.addEventListener('canplaythrough', () => {
+                            clearTimeout(timeout);
+                            resolve();
+                        }, { once: true });
+                        
+                        this.el.addEventListener('error', (e) => {
+                            clearTimeout(timeout);
+                            console.warn('⚠️ Audio error during wait:', e);
+                            resolve(); // Continue anyway
+                        }, { once: true });
+                    });
+                    
+                    // Try to play
+                    await this.el.play();
+                    console.log('🎵 Audio playback started after waiting');
                 }
             } catch (e) {
-                console.warn('Audio playback failed:', e);
+                console.warn('❌ Audio playback failed:', e);
                 throw e;
             }
         }
